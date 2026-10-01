@@ -1,0 +1,15 @@
+# Optional: deploy the SPA to Netlify (or any static host) as a secondary
+# origin. The API can also serve the built SPA itself — see DEPLOY.md.
+#
+# REQUIRED: set VITE_API_BASE in the Netlify UI (Site settings → Environment
+# variables) to your API origin, e.g. https://directcut.example.com — the build
+# fails the runtime same-origin assumption without it.
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

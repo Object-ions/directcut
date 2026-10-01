@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Directcut CLI — manage generations from the server's terminal.
+#   directcut ls [n]              list the last n generations (default 20)
+#   directcut rm <id> [id...]     delete generations (DB row + media file)
+#   directcut rm failed           delete every failed generation
+#   directcut media               ls the raw media folder
+# Auth: DIRECTCUT_PASSWORD, else APP_SECRET from server/.env.
+set -euo pipefail
+
+SERVER_DIR="$(cd "$(dirname "$0")/../server" && pwd)"
+ENV_FILE=${DIRECTCUT_ENV:-"$SERVER_DIR/.env"}
+BASE=${DIRECTCUT_BASE:-http://127.0.0.1:3456}
+KEY=${DIRECTCUT_PASSWORD:-$( [ -f "$ENV_FILE" ] && grep '^APP_SECRET=' "$ENV_FILE" | cut -d= -f2- || true)}
+[ -n "$KEY" ] || { echo "set DIRECTCUT_PASSWORD to your Directcut password" >&2; exit 1; }
+
+cmd=${1:-ls}
+case "$cmd" in
+  ls)
+    limit=${2:-20}
+    curl -s -H "X-App-Key: $KEY" "$BASE/api/generations?limit=$limit" | python3 -c '
+import json, sys
+rows = json.load(sys.stdin)
+if not rows:
+    print("no generations"); raise SystemExit
+print(f"{"ID":36}  {"STATUS":10}  {"KIND":5}  {"COST":6}  PROMPT")
+for r in rows:
+    cost = f"${r.get("cost_estimate") or 0:.3f}"
+    prompt = (r.get("prompt") or "").replace("\n", " ")[:50]
+    print(f"{r["id"]:36}  {r["status"]:10}  {r["kind"]:5}  {cost:6}  {prompt}")
+'
+    ;;
+  rm)
+    shift
+    [ $# -ge 1 ] || { echo "usage: directcut rm <id...|failed>" >&2; exit 1; }
+    if [ "$1" = "failed" ]; then
+      curl -s -X DELETE -H "X-App-Key: $KEY" "$BASE/api/generations?status=failed"; echo
+    else
+      for id in "$@"; do
+        curl -s -X DELETE -H "X-App-Key: $KEY" "$BASE/api/generations/$id"; echo
+      done
+    fi
+    ;;
+  media)
+    ls -lh "$SERVER_DIR/media"
+    ;;
+  *)
+    echo "usage: directcut [ls [n] | rm <id...|failed> | media]" >&2
+    exit 1
+    ;;
+esac
