@@ -65,8 +65,8 @@ MIME_BY_EXT.jpeg = 'image/jpeg';
 
 export class RefNotReachableError extends Error {
   constructor() {
-    super('Video and audio references need Directcut running at a public https address '
-      + '(set PUBLIC_BASE_URL in server/.env). Image references work anywhere.');
+    super('Video and audio references need a public https address: set PUBLIC_BASE_URL '
+      + 'in server/.env, or leave REF_TUNNEL on. Image references work anywhere.');
     this.status = 400;
   }
 }
@@ -84,6 +84,19 @@ export function localRefToDataUrl(url, publicBaseUrl = '') {
   if (mime.startsWith('image/')) return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
   if (/^https:\/\//.test(publicBaseUrl)) return `${publicBaseUrl}/media/refs/${name}`;
   throw new RefNotReachableError();
+}
+
+// Filenames of our own non-image refs in a payload: the ones OpenRouter can
+// only fetch from a public https URL.
+export function localMediaRefNames(payload) {
+  const names = [];
+  for (const ref of [...(payload.input_references || []), ...(payload.frame_images || [])]) {
+    const key = Object.keys(ref).find((k) => k.endsWith('_url') && ref[k]?.url);
+    if (!key || key === 'image_url') continue;
+    const name = localRefName(ref[key].url);
+    if (name) names.push(name);
+  }
+  return names;
 }
 
 // Returns a copy of an OpenRouter payload with local refs made reachable.

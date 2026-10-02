@@ -9,7 +9,8 @@ import {
   stalePendingRows, saveRow, deleteGeneration, listByStatus,
   allParamsJson, reserveSpend, countsByStatus,
 } from './db.js';
-import { mediaDir, refsDir, downloadToMedia, responseToMedia, base64ToMedia, inlineLocalRefs } from './media.js';
+import { mediaDir, refsDir, downloadToMedia, responseToMedia, base64ToMedia, inlineLocalRefs, localMediaRefNames, RefNotReachableError } from './media.js';
+import { shareRefs, tunnelEnabled, stopTunnel } from './tunnel.js';
 import { enhance, enhancerConfigured } from './enhance.js';
 import {
   createTask, getTask, mapStatus, normalizeTask, downloadVideo, verifyKey, actualCost, RATES,
@@ -257,10 +258,18 @@ function publicView(row) {
 }
 
 // Merge fresh OpenRouter task state into our row and persist the output locally.
+// Generation id -> release() for refs shared through the temporary tunnel.
+const tunnelShares = new Map();
+function releaseShare(id) {
+  tunnelShares.get(id)?.();
+  tunnelShares.delete(id);
+}
+
 async function syncRowFromTask(row, task) {
   const normalized = normalizeTask(task, row.kind);
   const status = mapStatus(normalized.status);
   row.status = status;
+  if (status === 'completed' || status === 'failed') releaseShare(row.id);
   row.provider_task_id = normalized.id || row.provider_task_id;
   const cost = actualCost(normalized);
   if (cost != null) row.cost_estimate = cost; // the real charge replaces the estimate
@@ -328,8 +337,23 @@ function notifyCompletion(row) {
 app.post('/api/generate', async (req, res, next) => {
   try {
     const built = validateAndBuild(req.body || {}, { publicBaseUrl: PUBLIC_BASE_URL });
-    // Before reserving spend, so an unreachable video/audio ref is a plain 400.
-    built.payload = inlineLocalRefs(built.payload, PUBLIC_BASE_URL);
+    // Make local refs reachable before reserving spend, so a failure here costs
+    // nothing. Images are inlined; video/audio need a public https URL: the
+    // real one if configured, otherwise a temporary tunnel (tunnel.js).
+    let refsBase = PUBLIC_BASE_URL;
+    let share = null;
+    const mediaRefs = localMediaRefNames(built.payload);
+    if (mediaRefs.length && !/^https:\/\//.test(PUBLIC_BASE_URL)) {
+      if (!tunnelEnabled()) throw new RefNotReachableError();
+      share = await shareRefs(mediaRefs);
+      refsBase = share.baseUrl;
+    }
+    try {
+      built.payload = inlineLocalRefs(built.payload, refsBase);
+    } catch (err) {
+      share?.release();
+      throw err;
+    }
 
     const row = {
       id: crypto.randomUUID(),
@@ -356,15 +380,18 @@ app.post('/api/generate', async (req, res, next) => {
     // concurrent requests can't both read the same total and both pass.
     const reserved = reserveSpend(row, DAILY_SPEND_CAP);
     if (!reserved.ok) {
+      share?.release();
       return res.status(429).json({
         error: `daily spend cap reached ($${reserved.spent.toFixed(2)} spent + $${built.cost.toFixed(3)} > $${DAILY_SPEND_CAP})`,
       });
     }
 
+    if (share) tunnelShares.set(row.id, share.release);
     try {
       const task = await createTask(built.payload, built.kind);
       await syncRowFromTask(row, task);
     } catch (err) {
+      releaseShare(row.id);
       row.status = 'failed';
       row.error = err.message;
       saveRow(row);
@@ -626,3 +653,8 @@ app.listen(PORT, HOST, () => {
     console.log('');
   }
 });
+
+// Don't leave a cloudflared child running if the server is stopped.
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.once(sig, () => { stopTunnel(); process.exit(0); });
+}

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { refsDir, inlineLocalRefs, localRefToDataUrl } from '../media.js';
+import { refsDir, inlineLocalRefs, localRefToDataUrl, localMediaRefNames } from '../media.js';
 
 test('local refs are inlined as data URLs, remote ones pass through', () => {
   const name = 'test-inline.png';
@@ -38,4 +38,15 @@ test('video/audio refs need a public https base', () => {
   } finally {
     fs.rmSync(path.join(refsDir, name), { force: true });
   }
+});
+test('only local non-image refs need a public URL', () => {
+  const names = localMediaRefNames({
+    input_references: [
+      { type: 'image_url', image_url: { url: '/media/refs/a.png' } },
+      { type: 'video_url', video_url: { url: 'http://localhost:3456/media/refs/b.mp4' } },
+      { type: 'audio_url', audio_url: { url: '/media/refs/c.mp3' } },
+      { type: 'video_url', video_url: { url: 'https://cdn.example/d.mp4' } },
+    ],
+  });
+  assert.deepEqual(names, ['b.mp4', 'c.mp3']);
 });

@@ -7,6 +7,7 @@ Self-hosted AI video/image generation: a browser UI over OpenRouter's Seedance (
   - `openrouter.js`: model ids, `RATES`, OpenRouter HTTP calls (generation, polling, key check, chat for Enhance).
   - `validate.js`: `/api/generate` body validation → OpenRouter payload + cost estimate (pure, unit-tested).
   - `settings.js`: password (scrypt hash) and OpenRouter key stored in SQLite; env vars override; first-run setup code.
+  - `media.js`: media downloads; makes local refs reachable (images inlined as data URLs). `tunnel.js`: temporary Cloudflare quick tunnel serving only active jobs' video/audio refs when `PUBLIC_BASE_URL` isn't https.
   - `db.js`: SQLite schema + prepared statements. `enhance.js`: prompt enhancer.
 - `web/`: Vite + React SPA (plain JS + SCSS, no Tailwind). Screens: Setup (first run) → Login → App; Settings dialog.
 - `examples/agent-skill/`: worked example of giving an AI agent access via the API.

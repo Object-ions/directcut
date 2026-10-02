@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Video and audio references work on a local install: a temporary Cloudflare
+  quick tunnel serves only the reference files of jobs in flight and closes
+  when they finish (`REF_TUNNEL=off` disables it).
 - Image references now work on a local install: they're embedded in the
   request instead of sent as a localhost link OpenRouter can't reach.
 - Video and audio references without a public https address now fail with a

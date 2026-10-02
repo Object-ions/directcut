@@ -114,6 +114,7 @@ advanced use, copy `server/.env.example` to `server/.env`:
 | `DAILY_SPEND_CAP` | `10` | Hard daily limit (USD) on the sum of generation costs |
 | `ENHANCE_MODEL` | `anthropic/claude-sonnet-5.5` | Any OpenRouter chat model for ✦ Enhance |
 | `WEBHOOK_SECRET` | — | Enables OpenRouter completion callbacks (otherwise a 60s poller handles it) |
+| `REF_TUNNEL` | `on` | Temporary public link for video/audio references when `PUBLIC_BASE_URL` isn't https (`off` to disable) |
 | `ALLOWED_ORIGINS` | localhost dev | CORS origins, only for a separately hosted UI |
 | `POLL_MAX_AGE_HOURS` | `24` | Give up on unresolved video jobs after this |
 | `COMPLETION_WEBHOOK_URL` | — | POST generation metadata here when a job finishes (n8n, Zapier, archiving…) |
@@ -139,12 +140,17 @@ Simple on purpose. Know what it is before putting it on the internet:
 
 ## Known limitations
 
-- **Video and audio references on a local install.** Image references work
-  everywhere: Directcut sends them to OpenRouter embedded in the request.
-  OpenRouter only accepts video and audio references as public `https://`
-  URLs, so those need a public deployment (`PUBLIC_BASE_URL=https://…`) or a
-  tunnel such as Cloudflare Tunnel or ngrok. Without one, Directcut stops the
-  request with a clear message before anything is charged.
+- **Video and audio references on a local install.** Image references are
+  embedded in the request, so they work anywhere. OpenRouter only accepts video
+  and audio references as public `https://` URLs, so on a local install
+  Directcut opens a free, temporary [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/do-more-with-tunnels/trycloudflare/)
+  that serves **only** the reference files of jobs in flight (not the app,
+  gallery or API) and closes it about a minute after they finish. Quick tunnels
+  carry no uptime guarantee; if one can't open, the request fails before
+  anything is charged. Set `REF_TUNNEL=off` to disable it, or use a public
+  `https://` `PUBLIC_BASE_URL`, which skips the tunnel entirely.
+- Seedance rejects small video references: they need roughly 640×640 pixels
+  or more.
 - Video estimates cover output duration only. Seedance bills video
   *reference input* at a separate rate that isn't included.
 
