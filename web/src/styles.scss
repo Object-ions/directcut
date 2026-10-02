@@ -622,6 +622,12 @@ input[type='range'] {
 
 // ---------- cost bar ----------
 
+.costbar__warn {
+  font-family: $mono;
+  font-size: 12px;
+  color: $warn;
+}
+
 .costbar {
   display: flex;
   align-items: center;

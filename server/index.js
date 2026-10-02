@@ -265,6 +265,23 @@ function releaseShare(id) {
   tunnelShares.delete(id);
 }
 
+// OpenRouter answers 404 for a job it has dropped (seen when the account ran
+// out of credits mid-queue). Such a row would otherwise sit "queued" until the
+// 24h ceiling, so fail it, but only once it's old enough that a 404 can't be
+// a brand-new job that isn't visible yet.
+const LOST_JOB_GRACE_MS = 2 * 60 * 1000;
+function failIfLost(row, err) {
+  if (err.httpStatus !== 404) return false;
+  if (Date.now() - new Date(row.created_at).getTime() < LOST_JOB_GRACE_MS) return false;
+  row.status = 'failed';
+  row.error = 'OpenRouter no longer has this job (it was dropped before finishing). '
+    + 'Check openrouter.ai/activity for any charge and your credit balance, then try again.';
+  releaseShare(row.id);
+  saveRow(row);
+  console.error(`lost job ${row.id} (${row.provider_task_id})`);
+  return true;
+}
+
 async function syncRowFromTask(row, task) {
   const normalized = normalizeTask(task, row.kind);
   const status = mapStatus(normalized.status);
@@ -477,7 +494,7 @@ app.get('/api/tasks/:id', async (req, res, next) => {
         const task = await getTask(row.provider_task_id);
         row = await syncRowFromTask(row, task);
       } catch (err) {
-        console.error(`poll ${row.id} failed:`, err.message);
+        if (!failIfLost(row, err)) console.error(`poll ${row.id} failed:`, err.message);
       }
     }
     res.json(publicView(row));
@@ -603,7 +620,7 @@ async function pollStaleRows() {
       const task = await getTask(row.provider_task_id);
       await syncRowFromTask(row, task);
     } catch (err) {
-      console.error(`fallback poll ${row.id} failed:`, err.message);
+      if (!failIfLost(row, err)) console.error(`fallback poll ${row.id} failed:`, err.message);
     }
   }
 }

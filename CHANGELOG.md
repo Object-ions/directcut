@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Reference tunnel is more reliable: it waits for cloudflared to connect,
+  checks public DNS through two providers, and retries once with a fresh
+  tunnel. No cloudflared process is left behind if the server stops mid-start.
+- Jobs OpenRouter no longer knows about (404) are marked failed after 2
+  minutes, not left "queued" for 24h.
+- Voice-only references on Seedance 2 Fast are flagged before Generate.
+- Frame mode defaults to the "auto" aspect ratio (Seedance follows the start
+  image), and the image cost estimate includes Seedream Pro reference input.
 - Reference slots: start/end frame boxes and character / style / motion /
   voice references for video, an image-reference tray for Seedream. Adding a
   reference writes its phrase into the prompt; removing one cleans it up and

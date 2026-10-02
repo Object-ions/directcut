@@ -116,7 +116,11 @@ export default function App() {
   // Video mode isn't picked by hand: it follows what's attached.
   const mode = params.kind === 'video' ? videoMode(frames, refs) : null;
 
-  // 'auto' aspect only exists for frame mode; fall back when frames go away.
+  // Seedance shapes a frames video like its start image, so frame mode
+  // defaults to 'auto'; 'auto' only exists there, so fall back when it ends.
+  useEffect(() => {
+    if (mode === 'first_last_frames') setParams((p) => ({ ...p, aspectRatio: 'auto' }));
+  }, [mode]);
   useEffect(() => {
     if (params.aspectRatio === 'auto' && mode !== 'first_last_frames') {
       setParams((p) => ({ ...p, aspectRatio: '16:9' }));
@@ -209,10 +213,16 @@ export default function App() {
     return () => clearInterval(pollTimer.current);
   }, [ready, refresh]);
 
-  const cost = estimateCost(params);
+  const cost = estimateCost({ ...params, referenceCount: params.kind === 'image' ? refs.length : 0 });
+
+  // Combinations the server would reject, caught before the click.
+  const refsProblem = params.kind === 'video' && !params.taskType.startsWith('seedance-2.5')
+    && refs.some((r) => r.type === 'audio') && !refs.some((r) => r.type !== 'audio')
+    ? `${params.taskType} needs an image or video reference with a voice, add a character or switch to seedance-2.5`
+    : null;
 
   async function generate() {
-    if (!prompt.trim() || busy) return;
+    if (!prompt.trim() || busy || uploading > 0 || refsProblem) return;
     setBusy(true);
     try {
       // With an enhancement in play, record the before/after pair: `prompt` is
@@ -342,11 +352,12 @@ export default function App() {
                 : ` · ${params.taskType} · ${params.size}`}
             </span>
           </code>
+          {refsProblem && <span className="costbar__warn" role="alert">{refsProblem}</span>}
           <span className="costbar__hint" aria-hidden="true">⌘⏎</span>
           <button
             type="button"
             className="btn btn--generate"
-            disabled={busy || uploading > 0 || !prompt.trim() || cost == null || keyMissing}
+            disabled={busy || uploading > 0 || !prompt.trim() || cost == null || keyMissing || Boolean(refsProblem)}
             onClick={generate}
           >
             {busy ? 'submitting…' : 'Generate'}

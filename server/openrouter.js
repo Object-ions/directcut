@@ -68,7 +68,12 @@ async function openrouterFetch(path, options = {}, key = openrouterKey()) {
     return res;
   }
   const body = await res.json();
-  if (!res.ok) throw new Error(`OpenRouter error (HTTP ${res.status}): ${body?.error?.message || body?.message || 'request failed'}`);
+  if (!res.ok) {
+    throw Object.assign(
+      new Error(`OpenRouter error (HTTP ${res.status}): ${body?.error?.message || body?.message || 'request failed'}`),
+      { httpStatus: res.status },
+    );
+  }
   return body;
 }
 

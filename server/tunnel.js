@@ -18,7 +18,8 @@ import { refsDir } from './media.js';
 
 const SHARE_TTL_MS = 30 * 60 * 1000;
 const IDLE_STOP_MS = 60 * 1000;
-const READY_TIMEOUT_MS = 45 * 1000;
+const READY_TIMEOUT_MS = 40 * 1000;
+const DNS_SETTLE_MS = 2000;
 const MIME = { mp4: 'video/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
 export const tunnelEnabled = () => process.env.REF_TUNNEL !== 'off';
@@ -27,6 +28,19 @@ const shares = new Map(); // share id -> { names: Set, timer }
 let state = null; // { server, tunnel, baseUrl } once up
 let starting = null; // in-flight start promise
 let idleTimer = null;
+
+// Every cloudflared child, tracked from spawn (not just once it's up), so a
+// server stopped mid-startup can't leave an orphaned tunnel behind.
+const children = new Set();
+function track(tunnel) {
+  children.add(tunnel.process);
+  tunnel.process.once('exit', () => children.delete(tunnel.process));
+}
+function killChildren() {
+  for (const child of children) child.kill('SIGKILL');
+  children.clear();
+}
+process.once('exit', killChildren);
 
 const isShared = (name) => [...shares.values()].some((s) => s.names.has(name));
 
@@ -54,11 +68,18 @@ function startFileServer() {
   });
 }
 
-// Resolve through Cloudflare's public DNS-over-HTTPS rather than this
-// machine's resolver: an OS that looked the brand-new hostname up a moment too
-// early caches the miss for a while, but OpenRouter's resolvers don't share it.
-async function resolvePublic(host) {
-  const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${host}&type=A`, {
+// Resolve through public DNS-over-HTTPS rather than this machine's resolver.
+// Never query before cloudflared reports "connected" (plus a short pause):
+// asking for the brand-new hostname too early gets an NXDOMAIN that resolvers
+// cache for up to a minute. Alternating two providers means one stale
+// negative answer can't stall the check.
+const DOH = [
+  (host) => `https://cloudflare-dns.com/dns-query?name=${host}&type=A`,
+  (host) => `https://dns.google/resolve?name=${host}&type=A`,
+];
+
+async function resolvePublic(host, attempt) {
+  const res = await fetch(DOH[attempt % DOH.length](host), {
     headers: { accept: 'application/dns-json' }, signal: AbortSignal.timeout(5000),
   });
   const body = await res.json();
@@ -79,9 +100,10 @@ function pingVia(ip, baseUrl) {
 async function waitUntilReachable(baseUrl) {
   const host = new URL(baseUrl).host;
   const deadline = Date.now() + READY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+  await new Promise((r) => setTimeout(r, DNS_SETTLE_MS));
+  for (let attempt = 0; Date.now() < deadline; attempt += 1) {
     try {
-      const ip = await resolvePublic(host);
+      const ip = await resolvePublic(host, attempt);
       if (ip && await pingVia(ip, baseUrl)) return;
     } catch { /* not yet */ }
     await new Promise((r) => setTimeout(r, 1500));
@@ -89,24 +111,47 @@ async function waitUntilReachable(baseUrl) {
   throw new Error('tunnel did not become reachable in time');
 }
 
-async function start() {
-  const { Tunnel, bin, install } = await import('cloudflared');
-  if (!fs.existsSync(bin)) await install(bin);
-  const server = await startFileServer();
+async function openTunnel(server) {
+  const { Tunnel } = await import('cloudflared');
   const tunnel = Tunnel.quick(`http://127.0.0.1:${server.address().port}`);
+  track(tunnel);
   try {
     const baseUrl = await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('no tunnel URL from cloudflared')), READY_TIMEOUT_MS);
-      tunnel.once('url', (url) => { clearTimeout(timer); resolve(url.replace(/\/$/, '')); });
+      let url = null;
+      let connected = false;
+      const timer = setTimeout(() => reject(new Error('cloudflared did not connect')), READY_TIMEOUT_MS);
+      const done = () => { if (url && connected) { clearTimeout(timer); resolve(url); } };
+      tunnel.once('url', (u) => { url = u.replace(/\/$/, ''); done(); });
+      tunnel.once('connected', () => { connected = true; done(); });
       tunnel.once('error', (err) => { clearTimeout(timer); reject(err); });
       tunnel.once('exit', (code) => { clearTimeout(timer); reject(new Error(`cloudflared exited (${code})`)); });
     });
     await waitUntilReachable(baseUrl);
+    return { tunnel, baseUrl };
+  } catch (err) {
+    tunnel.stop();
+    throw err;
+  }
+}
+
+async function start() {
+  const { bin, install } = await import('cloudflared');
+  if (!fs.existsSync(bin)) await install(bin);
+  const server = await startFileServer();
+  try {
+    let opened;
+    try {
+      opened = await openTunnel(server);
+    } catch (err) {
+      // Quick tunnels occasionally come up slow; a fresh hostname usually works.
+      console.error(`ref tunnel attempt failed (${err.message}), retrying once`);
+      opened = await openTunnel(server);
+    }
+    const { tunnel, baseUrl } = opened;
     tunnel.on('exit', () => { if (state?.tunnel === tunnel) stop(); });
     console.log(`ref tunnel up: ${baseUrl}`);
     return { server, tunnel, baseUrl };
   } catch (err) {
-    tunnel.stop();
     server.close();
     throw err;
   }
@@ -155,8 +200,10 @@ function release(id) {
   scheduleIdleStop();
 }
 
+// Shutdown: drop every share and kill any cloudflared, up or still starting.
 export function stopTunnel() {
   for (const id of [...shares.keys()]) release(id);
   clearTimeout(idleTimer);
   stop();
+  killChildren();
 }

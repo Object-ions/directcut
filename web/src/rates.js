@@ -30,12 +30,16 @@ export const imageTaskTypes = () => Object.keys(IMAGE_RATES);
 export const VIDEO_ASPECTS = ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'];
 export const IMAGE_ASPECTS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '4:5', '5:4', '21:9'];
 
-export function estimateCost({ kind, taskType, resolution, size, duration }) {
+export function estimateCost({ kind, taskType, resolution, size, duration, referenceCount = 0 }) {
   if (kind === 'video') {
     const rate = VIDEO_RATES[taskType]?.[resolution];
     return rate == null ? null : Math.round(rate * duration * 1000) / 1000;
   }
-  return IMAGE_RATES[taskType]?.[size] ?? null;
+  const rate = IMAGE_RATES[taskType]?.[size];
+  if (rate == null) return null;
+  // Mirrors the server: Seedream Pro bills each reference image as input.
+  const inputCost = taskType === 'seedream-5-pro' ? referenceCount * 0.003 : 0;
+  return Math.round((rate + inputCost) * 1000) / 1000;
 }
 
 export function resolutionsFor(taskType) {
