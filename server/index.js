@@ -9,7 +9,7 @@ import {
   stalePendingRows, saveRow, deleteGeneration, listByStatus,
   allParamsJson, reserveSpend, countsByStatus,
 } from './db.js';
-import { mediaDir, refsDir, downloadToMedia, responseToMedia, base64ToMedia } from './media.js';
+import { mediaDir, refsDir, downloadToMedia, responseToMedia, base64ToMedia, inlineLocalRefs } from './media.js';
 import { enhance, enhancerConfigured } from './enhance.js';
 import {
   createTask, getTask, mapStatus, normalizeTask, downloadVideo, verifyKey, actualCost, RATES,
@@ -328,6 +328,8 @@ function notifyCompletion(row) {
 app.post('/api/generate', async (req, res, next) => {
   try {
     const built = validateAndBuild(req.body || {}, { publicBaseUrl: PUBLIC_BASE_URL });
+    // Before reserving spend, so an unreachable video/audio ref is a plain 400.
+    built.payload = inlineLocalRefs(built.payload, PUBLIC_BASE_URL);
 
     const row = {
       id: crypto.randomUUID(),

@@ -23,7 +23,7 @@ test('Seedance limits duration and resolution', () => {
 test('builds image request with real references', () => {
   const b = build({ kind: 'image', prompt: 'p', image_urls: ['https://x/ref.png'] });
   assert.equal(b.payload.model, 'bytedance-seed/seedream-5-0-pro');
-  assert.deepEqual(b.payload.input_references, ['https://x/ref.png']);
+  assert.deepEqual(b.payload.input_references, [{ type: 'image_url', image_url: { url: 'https://x/ref.png' } }]);
   assert.equal(b.cost, 0.048);
 });
 test('validates reference modes and tags', () => {
@@ -34,6 +34,13 @@ test('validates reference modes and tags', () => {
   assert.deepEqual(b.payload.input_references[0], {
     type: 'image_url', image_url: { url: 'https://x/a.png' },
   });
+});
+test('first_last_frames sends frame_images, not input_references', () => {
+  const b = build({ prompt: 'p', mode: 'first_last_frames', aspect_ratio: 'auto', image_urls: ['https://x/a.png', 'https://x/b.png'] });
+  assert.equal(b.payload.input_references, undefined);
+  assert.equal(b.payload.aspect_ratio, undefined);
+  assert.deepEqual(b.payload.frame_images.map((f) => f.frame_type), ['first_frame', 'last_frame']);
+  rejects({ prompt: 'p', aspect_ratio: 'auto' }, /aspect_ratio/);
 });
 test('adds OpenRouter callback when configured', () => {
   const b = validateAndBuild({ prompt: 'p' }, { publicBaseUrl: 'https://directcut.example', webhookSecret: 'secret value' });

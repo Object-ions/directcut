@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Image references now work on a local install: they're embedded in the
+  request instead of sent as a localhost link OpenRouter can't reach.
+- Video and audio references without a public https address now fail with a
+  clear message before any spend is reserved.
+- First/last-frame video sends real start/end frames (`frame_images`), and its
+  `auto` aspect ratio is accepted.
+- Seedream image references use OpenRouter's typed reference format.
+- Dev server proxies `/media`, so reference thumbnails and the gallery load
+  when running `npm run dev`.
+
 ## 1.0.0 (2026-10-01)
 
 First public release.

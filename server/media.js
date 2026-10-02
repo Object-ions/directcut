@@ -53,3 +53,47 @@ export function base64ToMedia(data, mediaType = 'image/png') {
   fs.writeFileSync(path.join(mediaDir, name), Buffer.from(data, 'base64'));
   return name;
 }
+
+// Reference uploads are served from our own /media/refs/, which OpenRouter
+// can't reach when Directcut runs on a laptop (localhost or no public URL).
+// Images are inlined as base64 data URLs, which OpenRouter accepts. Video and
+// audio refs must be public https URLs (OpenRouter rejects data URLs for
+// them), so those only work when PUBLIC_BASE_URL is https. Anything that
+// isn't one of our refs (a real https URL) passes through untouched.
+const MIME_BY_EXT = Object.fromEntries(Object.entries(EXT_BY_TYPE).map(([t, e]) => [e, t]));
+MIME_BY_EXT.jpeg = 'image/jpeg';
+
+export class RefNotReachableError extends Error {
+  constructor() {
+    super('Video and audio references need Directcut running at a public https address '
+      + '(set PUBLIC_BASE_URL in server/.env). Image references work anywhere.');
+    this.status = 400;
+  }
+}
+
+const localRefName = (url) => /(?:^|\/)media\/refs\/([\w][\w.-]*)$/.exec(String(url).split(/[?#]/)[0])?.[1];
+
+export function localRefToDataUrl(url, publicBaseUrl = '') {
+  const name = localRefName(url);
+  if (!name) return url;
+  const file = path.join(refsDir, name);
+  if (!fs.existsSync(file)) {
+    throw Object.assign(new Error(`reference file is gone: ${name} (re-upload it)`), { status: 400 });
+  }
+  const mime = MIME_BY_EXT[path.extname(name).slice(1).toLowerCase()] || 'application/octet-stream';
+  if (mime.startsWith('image/')) return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+  if (/^https:\/\//.test(publicBaseUrl)) return `${publicBaseUrl}/media/refs/${name}`;
+  throw new RefNotReachableError();
+}
+
+// Returns a copy of an OpenRouter payload with local refs made reachable.
+export function inlineLocalRefs(payload, publicBaseUrl = '') {
+  const inline = (list) => list?.map((ref) => {
+    const key = Object.keys(ref).find((k) => k.endsWith('_url') && ref[k]?.url);
+    return key ? { ...ref, [key]: { ...ref[key], url: localRefToDataUrl(ref[key].url, publicBaseUrl) } } : ref;
+  });
+  const out = { ...payload };
+  if (out.input_references) out.input_references = inline(out.input_references);
+  if (out.frame_images) out.frame_images = inline(out.frame_images);
+  return out;
+}

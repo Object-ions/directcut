@@ -48,7 +48,9 @@ export function validateAndBuild(body, opts = {}) {
       kind, task_type, mode: null,
       params: { aspect_ratio, size, image_urls },
       payload: { model: MODELS[task_type], prompt, aspect_ratio, resolution: size,
-        ...(image_urls.length ? { input_references: image_urls } : {}) },
+        ...(image_urls.length
+          ? { input_references: image_urls.map((url) => ({ type: 'image_url', image_url: { url } })) }
+          : {}) },
       cost: estimateCost({ kind, task_type, size, referenceCount: image_urls.length }),
     };
   }
@@ -73,7 +75,9 @@ export function validateAndBuild(body, opts = {}) {
     throw validationError(`resolution ${resolution} is not available for ${task_type}`);
   }
   const aspect_ratio = body.aspect_ratio || '16:9';
-  if (!VIDEO_ASPECT_RATIOS.includes(aspect_ratio)) {
+  // 'auto' (match the first frame's shape) only makes sense with frames.
+  const aspects = mode === 'first_last_frames' ? [...VIDEO_ASPECT_RATIOS, 'auto'] : VIDEO_ASPECT_RATIOS;
+  if (!aspects.includes(aspect_ratio)) {
     throw validationError(`aspect_ratio must be one of: ${VIDEO_ASPECT_RATIOS.join(', ')}`);
   }
 
@@ -114,12 +118,20 @@ export function validateAndBuild(body, opts = {}) {
     }
   }
 
-  const references = [
+  const payload = { model: MODELS[task_type], prompt, duration, resolution, aspect_ratio };
+  if (aspect_ratio === 'auto') delete payload.aspect_ratio;
+  // Start/end frames go in frame_images (first upload = first frame), not
+  // input_references — otherwise Seedance treats them as loose style refs.
+  if (mode === 'first_last_frames') {
+    payload.frame_images = image_urls.map((url, i) => ({
+      type: 'image_url', image_url: { url }, frame_type: i === 0 ? 'first_frame' : 'last_frame',
+    }));
+  }
+  const references = mode === 'first_last_frames' ? [] : [
     ...image_urls.map((url) => ({ type: 'image_url', image_url: { url } })),
     ...video_urls.map((url) => ({ type: 'video_url', video_url: { url } })),
     ...audio_urls.map((url) => ({ type: 'audio_url', audio_url: { url } })),
   ];
-  const payload = { model: MODELS[task_type], prompt, duration, resolution, aspect_ratio };
   if (references.length) payload.input_references = references;
   if (webhookSecret && publicBaseUrl) payload.callback_url = `${publicBaseUrl}/api/webhook/openrouter?secret=${encodeURIComponent(webhookSecret)}`;
   return {

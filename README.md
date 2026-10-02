@@ -139,12 +139,12 @@ Simple on purpose. Know what it is before putting it on the internet:
 
 ## Known limitations
 
-- **Reference files on a local install.** OpenRouter has to download your
-  reference images/videos from a URL it can reach. On `localhost`, uploaded
-  references aren't reachable from the internet, so reference modes need
-  either a public deployment (`PUBLIC_BASE_URL`) or a tunnel such as
-  Cloudflare Tunnel or ngrok. Plain text-to-video and text-to-image work
-  everywhere.
+- **Video and audio references on a local install.** Image references work
+  everywhere: Directcut sends them to OpenRouter embedded in the request.
+  OpenRouter only accepts video and audio references as public `https://`
+  URLs, so those need a public deployment (`PUBLIC_BASE_URL=https://…`) or a
+  tunnel such as Cloudflare Tunnel or ngrok. Without one, Directcut stops the
+  request with a clear message before anything is charged.
 - Video estimates cover output duration only. Seedance bills video
   *reference input* at a separate rate that isn't included.
 
