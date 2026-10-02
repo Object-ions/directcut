@@ -27,12 +27,6 @@ export function applyServerRates(server) {
 export const videoTaskTypes = () => Object.keys(VIDEO_RATES);
 export const imageTaskTypes = () => Object.keys(IMAGE_RATES);
 
-export const VIDEO_MODES = [
-  { value: 'text_to_video', label: 'text → video' },
-  { value: 'first_last_frames', label: 'first / last frames' },
-  { value: 'omni_reference', label: 'omni reference' },
-];
-
 export const VIDEO_ASPECTS = ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'];
 export const IMAGE_ASPECTS = ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '4:5', '5:4', '21:9'];
 

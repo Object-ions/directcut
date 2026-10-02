@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  videoTaskTypes, imageTaskTypes, VIDEO_MODES, VIDEO_ASPECTS, IMAGE_ASPECTS,
+  videoTaskTypes, imageTaskTypes, VIDEO_ASPECTS, IMAGE_ASPECTS,
   resolutionsFor, sizesFor, maxDurationFor,
 } from '../rates.js';
 
@@ -13,14 +13,14 @@ function Field({ label, children }) {
   );
 }
 
-export default function ParamsRail({ params, onChange, onOpenSettings }) {
-  const { kind, taskType, mode, duration, resolution, size, aspectRatio } = params;
+export default function ParamsRail({ params, mode, onChange, onOpenSettings }) {
+  const { kind, taskType, duration, resolution, size, aspectRatio } = params;
   const set = (patch) => onChange({ ...params, ...patch });
 
   function setKind(nextKind) {
     if (nextKind === kind) return;
     set(nextKind === 'video'
-      ? { kind: 'video', taskType: 'seedance-2.5', mode: 'text_to_video', resolution: '480p', aspectRatio: '16:9' }
+      ? { kind: 'video', taskType: 'seedance-2.5', resolution: '480p', aspectRatio: '16:9' }
       : { kind: 'image', taskType: 'seedream-5-pro', size: '1K', aspectRatio: '1:1' });
   }
 
@@ -77,22 +77,6 @@ export default function ParamsRail({ params, onChange, onOpenSettings }) {
 
       {kind === 'video' && (
         <>
-          <Field label="mode">
-            <select
-              value={mode}
-              onChange={(e) => {
-                const nextMode = e.target.value;
-                const patch = { mode: nextMode };
-                if (aspectRatio === 'auto' && nextMode !== 'first_last_frames') patch.aspectRatio = '16:9';
-                set(patch);
-              }}
-            >
-              {VIDEO_MODES.map((m) => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </Field>
-
           <Field label={`duration · ${duration}s`}>
             <input
               type="range"

@@ -1,30 +1,12 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { api, AuthError } from '../api.js';
 
-const TYPE_BY_EXT = {
-  jpg: 'image', jpeg: 'image', png: 'image', webp: 'image',
-  mp4: 'video',
-  mp3: 'audio', wav: 'audio',
-};
-
-// Assign @image1-style tags in upload order within each type.
-export function tagRefs(refs) {
-  const counters = { image: 0, video: 0, audio: 0 };
-  return refs.map((r) => {
-    counters[r.type] += 1;
-    return { ...r, tag: `@${r.type}${counters[r.type]}` };
-  });
-}
-
 export default function PromptPanel({
-  prompt, onPrompt, onUseEnhanced, params, refs, onRefs, enhancerAvailable, onEnhancerGone, onAuthError, onSubmit,
+  prompt, onPrompt, onUseEnhanced, params, refs, onPasteFiles, enhancerAvailable, onEnhancerGone, onAuthError, onSubmit,
 }) {
   const [enhanced, setEnhanced] = useState(null);
   const [enhancing, setEnhancing] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
-  const fileInput = useRef(null);
-  const tagged = tagRefs(refs);
 
   async function enhance() {
     if (!prompt.trim() || enhancing) return;
@@ -49,29 +31,6 @@ export default function PromptPanel({
     }
   }
 
-  async function upload(files) {
-    setError('');
-    setUploading(true);
-    try {
-      for (const file of files) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const type = TYPE_BY_EXT[ext];
-        if (!type) {
-          setError(`unsupported file type: .${ext}`);
-          continue;
-        }
-        const { url, filename } = await api.upload(file);
-        onRefs((prev) => [...prev, { url, filename, type, name: file.name }]);
-      }
-    } catch (err) {
-      if (err instanceof AuthError) return onAuthError();
-      setError(err.message);
-    } finally {
-      setUploading(false);
-      if (fileInput.current) fileInput.current.value = '';
-    }
-  }
-
   return (
     <section className="prompt">
       <div className="prompt__head">
@@ -92,6 +51,12 @@ export default function PromptPanel({
         value={prompt}
         aria-label="prompt"
         onChange={(e) => onPrompt(e.target.value)}
+        onPaste={(e) => {
+          const files = [...(e.clipboardData?.files || [])];
+          if (!files.length) return;
+          e.preventDefault();
+          onPasteFiles(files);
+        }}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -129,44 +94,6 @@ export default function PromptPanel({
           </div>
         </div>
       )}
-
-      <div className="refs">
-        <div className="refs__chips">
-          {tagged.map((r, i) => (
-            <span key={r.url} className={`chip chip--${r.type}`}>
-              {r.type === 'image' && <img src={r.url} alt="" />}
-              <code>{r.tag}</code>
-              <span className="chip__name">{r.name}</span>
-              <button
-                type="button"
-                aria-label={`remove ${r.tag}`}
-                onClick={() => onRefs((prev) => prev.filter((_, j) => j !== i))}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          <button
-            type="button"
-            className="chip chip--add"
-            disabled={uploading}
-            onClick={() => fileInput.current?.click()}
-          >
-            {uploading ? 'uploading…' : '+ add reference'}
-          </button>
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          multiple
-          accept=".jpg,.jpeg,.png,.webp,.mp4,.mp3,.wav"
-          hidden
-          onChange={(e) => upload([...e.target.files])}
-        />
-        {tagged.length > 0 && (
-          <p className="refs__hint">reference these in the prompt as {tagged.map((r) => r.tag).join(', ')}</p>
-        )}
-      </div>
 
       {error && <p className="prompt__error">{error}</p>}
     </section>

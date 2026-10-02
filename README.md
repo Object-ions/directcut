@@ -75,6 +75,7 @@ OpenRouter key, change your password, or sign out.
 ## Features
 
 - Text-to-video, first/last-frame video and multi-reference ("omni") video with Seedance 2.5 and Seedance 2 Fast
+- **Reference slots:** start/end frame boxes, plus one-click **character**, **style**, **motion** and **voice** references that write their `@tag` phrase into your prompt. The video mode is picked automatically from what you attach. Drag and drop anywhere, or paste an image with ⌘V.
 - Image generation and editing with Seedream 5 Pro and Lite
 - **✦ Enhance** turns a rough idea into a detailed, production-grade prompt. It runs through your same OpenRouter key.
 - Live cost estimate before every generation, plus a server-enforced daily cap

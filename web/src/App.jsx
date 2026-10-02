@@ -7,15 +7,25 @@ import Settings from './components/Settings.jsx';
 import ParamsRail from './components/ParamsRail.jsx';
 import PromptPanel from './components/PromptPanel.jsx';
 import Gallery from './components/Gallery.jsx';
+import RefSlots from './components/RefSlots.jsx';
+import {
+  fileType, videoSize, roleInfo, nextTag, appendToPrompt, promptAfterRemoval, videoMode,
+  IMAGE_REF_LIMIT, MIN_VIDEO_REF_PIXELS,
+} from './refs.js';
 
 const DEFAULT_PARAMS = {
   kind: 'video',
   taskType: 'seedance-2.5',
-  mode: 'text_to_video',
   duration: 5,
   resolution: '480p',
   size: '2K',
   aspectRatio: '16:9',
+};
+
+const MODE_LABEL = {
+  text_to_video: 'text → video',
+  first_last_frames: 'frames → video',
+  omni_reference: 'references → video',
 };
 
 const ACTIVE = (g) => g.status === 'queued' || g.status === 'processing';
@@ -35,6 +45,11 @@ export default function App() {
   // idea so the before/after pair can be recorded with the generation.
   const [enhancedFrom, setEnhancedFrom] = useState(null);
   const [refs, setRefs] = useState([]);
+  const refsRef = useRef(refs);
+  refsRef.current = refs;
+  const [frames, setFrames] = useState({ start: null, end: null });
+  const [uploading, setUploading] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const [, setRatesVersion] = useState(0); // bump to re-render after /api/rates lands
   const [enhancerGone, setEnhancerGone] = useState(false);
   const [generations, setGenerations] = useState([]);
@@ -98,22 +113,84 @@ export default function App() {
       .catch(() => {});
   }, [ready]);
 
-  // Refs updates come as updater functions (uploads are sequential and must
-  // not clobber each other). Mode follows the refs: first attach flips
-  // text_to_video → omni_reference, removing the last one flips it back.
-  const handleRefs = useCallback((update) => {
-    setRefs((prev) => {
-      const next = typeof update === 'function' ? update(prev) : update;
-      if (params.kind === 'video') {
-        if (next.length && !prev.length && params.mode === 'text_to_video') {
-          setParams((p) => ({ ...p, mode: 'omni_reference' }));
-        } else if (!next.length && prev.length && params.mode === 'omni_reference') {
-          setParams((p) => ({ ...p, mode: 'text_to_video' }));
+  // Video mode isn't picked by hand: it follows what's attached.
+  const mode = params.kind === 'video' ? videoMode(frames, refs) : null;
+
+  // 'auto' aspect only exists for frame mode; fall back when frames go away.
+  useEffect(() => {
+    if (params.aspectRatio === 'auto' && mode !== 'first_last_frames') {
+      setParams((p) => ({ ...p, aspectRatio: '16:9' }));
+    }
+  }, [mode, params.aspectRatio]);
+
+  // Image generation only takes image refs and has no frames.
+  useEffect(() => {
+    if (params.kind !== 'image') return;
+    setFrames({ start: null, end: null });
+    setRefs((prev) => prev.filter((r) => r.type === 'image').map((r) => ({ ...r, role: null })));
+  }, [params.kind]);
+
+  // Upload files into a target: { slot: 'start'|'end' } for a frame,
+  // { role } for a typed video reference, { tray: true } for a plain one.
+  // Everything is checked before upload so bad files fail fast and free.
+  const attach = useCallback(async (files, target) => {
+    for (const file of files) {
+      const type = fileType(file);
+      if (!type) { pushToast(`unsupported file: ${file.name} (use jpg, png, webp, mp4, mp3 or wav)`); continue; }
+      const role = target.role ? roleInfo(target.role) : null;
+      const wants = target.slot ? 'image' : role?.type || (params.kind === 'image' ? 'image' : null);
+      if (wants && type !== wants) { pushToast(`${file.name}: this slot takes ${wants === 'image' ? 'an' : 'a'} ${wants}`); continue; }
+      if (type === 'video') {
+        const dim = await videoSize(file);
+        if (dim && dim.w * dim.h < MIN_VIDEO_REF_PIXELS) {
+          pushToast(`${file.name} is ${dim.w}×${dim.h}: Seedance needs video references of about 640×640 or larger`);
+          continue;
         }
       }
-      return next;
-    });
-  }, [params.kind, params.mode]);
+      setUploading((n) => n + 1);
+      try {
+        const { url, filename } = await api.upload(file);
+        const base = { url, filename, type, name: file.name };
+        if (target.slot) {
+          setFrames((f) => ({ ...f, [target.slot]: base }));
+          if (target.slot === 'start' && files.length > 1) target = { slot: 'end' };
+          continue;
+        }
+        // Read and write through refsRef (not a setRefs updater) so the
+        // prompt phrase is appended exactly once, even under StrictMode.
+        const prev = refsRef.current;
+        if (params.kind === 'image' && prev.length >= IMAGE_REF_LIMIT) {
+          pushToast(`at most ${IMAGE_REF_LIMIT} image references`);
+          continue;
+        }
+        const phrase = role ? role.phrase(nextTag(prev, type)) : null;
+        const next = [...prev, { ...base, role: role?.role || null }];
+        refsRef.current = next;
+        setRefs(next);
+        if (phrase) setPrompt((p) => appendToPrompt(p, phrase));
+      } catch (err) {
+        if (err instanceof AuthError) return logout();
+        pushToast(err.message);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  }, [params.kind, pushToast, logout]);
+
+  // Drop/paste with no explicit slot: in frame mode an image fills the end
+  // frame; otherwise it becomes a plain reference.
+  const attachLoose = useCallback((files) => {
+    if (params.kind === 'video' && frames.start) {
+      if (frames.end) return pushToast('remove the start/end frames to add references');
+      return attach(files.slice(0, 1), { slot: 'end' });
+    }
+    return attach(files, { tray: true });
+  }, [params.kind, frames, attach, pushToast]);
+
+  function removeRef(index) {
+    setPrompt((p) => promptAfterRemoval(p, refs, index));
+    setRefs((prev) => prev.filter((_, i) => i !== index));
+  }
 
   // Initial load + poll every 5s while anything is active.
   useEffect(() => {
@@ -149,10 +226,12 @@ export default function App() {
         source: 'web',
       };
       if (params.kind === 'video') {
-        body.mode = params.mode;
+        body.mode = mode;
         body.duration = params.duration;
         body.resolution = params.resolution;
-        body.image_urls = refs.filter((r) => r.type === 'image').map((r) => r.url);
+        body.image_urls = mode === 'first_last_frames'
+          ? [frames.start, frames.end].filter(Boolean).map((r) => r.url)
+          : refs.filter((r) => r.type === 'image').map((r) => r.url);
         body.video_urls = refs.filter((r) => r.type === 'video').map((r) => r.url);
         body.audio_urls = refs.filter((r) => r.type === 'audio').map((r) => r.url);
       } else {
@@ -201,9 +280,22 @@ export default function App() {
 
   return (
     <div className="app">
-      <ParamsRail params={params} onChange={setParams} onOpenSettings={() => setSettingsOpen(true)} />
+      <ParamsRail params={params} mode={mode} onChange={setParams} onOpenSettings={() => setSettingsOpen(true)} />
 
-      <main className="main">
+      <main
+        className={`main${dragging ? ' is-dragging' : ''}`}
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (e.dataTransfer.files.length) attachLoose([...e.dataTransfer.files]);
+        }}
+      >
         {keyMissing && (
           <div className="banner" role="alert">
             <span>Add your OpenRouter key to start generating.</span>
@@ -221,13 +313,24 @@ export default function App() {
             setEnhancedFrom(original.trim());
             setPrompt(enhanced);
           }}
-          params={params}
-          refs={refs}
-          onRefs={handleRefs}
+          params={{ ...params, mode }}
+          refs={mode === 'first_last_frames' ? [frames.start, frames.end].filter(Boolean) : refs}
+          onPasteFiles={attachLoose}
           enhancerAvailable={Boolean(settings?.enhancer) && !enhancerGone}
           onEnhancerGone={() => setEnhancerGone(true)}
           onAuthError={logout}
           onSubmit={generate}
+        />
+
+        <RefSlots
+          kind={params.kind}
+          refs={refs}
+          frames={frames}
+          uploading={uploading}
+          onAttach={attach}
+          onRemoveRef={removeRef}
+          onClearFrame={(slot) => setFrames((f) => (slot === 'start' ? { start: f.end, end: null } : { ...f, end: null }))}
+          onInsertTag={(tag) => setPrompt((p) => appendToPrompt(p, tag))}
         />
 
         <div className="costbar">
@@ -235,7 +338,7 @@ export default function App() {
             est. cost <strong>{cost == null ? '—' : `$${cost.toFixed(3)}`}</strong>
             <span className="costbar__detail">
               {params.kind === 'video'
-                ? ` · ${params.taskType} · ${params.duration}s @ ${params.resolution}`
+                ? ` · ${params.taskType} · ${params.duration}s @ ${params.resolution} · ${MODE_LABEL[mode]}`
                 : ` · ${params.taskType} · ${params.size}`}
             </span>
           </code>
@@ -243,7 +346,7 @@ export default function App() {
           <button
             type="button"
             className="btn btn--generate"
-            disabled={busy || !prompt.trim() || cost == null || keyMissing}
+            disabled={busy || uploading > 0 || !prompt.trim() || cost == null || keyMissing}
             onClick={generate}
           >
             {busy ? 'submitting…' : 'Generate'}

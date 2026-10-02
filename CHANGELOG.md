@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Reference slots: start/end frame boxes and character / style / motion /
+  voice references for video, an image-reference tray for Seedream. Adding a
+  reference writes its phrase into the prompt; removing one cleans it up and
+  renumbers the remaining @tags. Drag and drop anywhere, paste with ⌘V.
+- Video mode is derived from what's attached (frames → frames mode,
+  references → reference mode, nothing → text); the mode dropdown is gone.
+- Video references smaller than ~640×640 are caught before upload.
 - Video and audio references work on a local install: a temporary Cloudflare
   quick tunnel serves only the reference files of jobs in flight and closes
   when they finish (`REF_TUNNEL=off` disables it).
