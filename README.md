@@ -12,6 +12,8 @@ Open source (MIT), by [Switch Case Studio](https://switchcasestudio.com).
 
 ![Directcut](docs/screenshots/directcut.png)
 
+▶ **[Watch the 90-second how-to video](docs/media/directcut-demo.mp4)**: the built-in tour, building a shot with character / style / voice references, and generating an image. New here? Click **?** next to ⚙ in the app to replay the tour anytime.
+
 ## Why
 
 Generation platforms resell these same models behind monthly plans and credit
@@ -60,8 +62,8 @@ Now open **http://localhost:3456** in your browser. The first screen asks you to
 
 ![First-run setup](docs/screenshots/setup.png)
 
-That's it. Type a prompt and hit **Generate**. Images land in seconds, and
-videos take a few minutes. Everything you make is shown in the gallery and
+That's it. Type a prompt and hit **Generate**. Images take up to a minute or
+two, and videos a few minutes. Everything you make is shown in the gallery and
 saved under `server/media/`.
 
 To stop Directcut, press `Ctrl+C` in the terminal. To start it again later,
@@ -75,6 +77,7 @@ OpenRouter key, change your password, or sign out.
 ## Features
 
 - Text-to-video, first/last-frame video and multi-reference ("omni") video with Seedance 2.5 and Seedance 2 Fast
+- **Guided tour** on first launch (replay it with **?**): every part of the screen explained in 8 short steps
 - **Reference slots:** start/end frame boxes, plus one-click **character**, **style**, **motion** and **voice** references that write their `@tag` phrase into your prompt. The video mode is picked automatically from what you attach. Drag and drop anywhere, or paste an image with ⌘V.
 - Image generation and editing with Seedream 5 Pro and Lite
 - **✦ Enhance** turns a rough idea into a detailed, production-grade prompt. It runs through your same OpenRouter key.
@@ -150,6 +153,10 @@ Simple on purpose. Know what it is before putting it on the internet:
   carry no uptime guarantee; if one can't open, the request fails before
   anything is charged. Set `REF_TUNNEL=off` to disable it, or use a public
   `https://` `PUBLIC_BASE_URL`, which skips the tunnel entirely.
+- **Seedance blocks photo-realistic faces** as video references and start/end
+  frames (ByteDance can't tell an AI-generated person from a real one).
+  Illustrated or stylized faces work. Seedream (image) accepts photo-real
+  faces, so use it for realistic people.
 - Seedance rejects small video references: they need roughly 640×640 pixels
   or more.
 - Video estimates cover output duration only. Seedance bills video

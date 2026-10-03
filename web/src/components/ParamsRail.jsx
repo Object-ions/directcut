@@ -13,7 +13,7 @@ function Field({ label, children }) {
   );
 }
 
-export default function ParamsRail({ params, mode, onChange, onOpenSettings }) {
+export default function ParamsRail({ params, mode, onChange, onOpenSettings, onOpenTour }) {
   const { kind, taskType, duration, resolution, size, aspectRatio } = params;
   const set = (patch) => onChange({ ...params, ...patch });
 
@@ -46,9 +46,14 @@ export default function ParamsRail({ params, mode, onChange, onOpenSettings }) {
     <aside className="rail">
       <div className="rail__brand">
         <span><span className="rail__mark">▞</span> DIRECTCUT</span>
-        <button type="button" className="rail__settings" aria-label="settings" title="settings" onClick={onOpenSettings}>
-          ⚙
-        </button>
+        <span className="rail__actions">
+          <button type="button" className="rail__settings" aria-label="how to use" title="how to use" onClick={onOpenTour}>
+            ?
+          </button>
+          <button type="button" className="rail__settings" aria-label="settings" title="settings" onClick={onOpenSettings}>
+            ⚙
+          </button>
+        </span>
       </div>
 
       <Field label="kind">

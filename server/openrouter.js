@@ -50,6 +50,24 @@ export class MissingKeyError extends Error {
   }
 }
 
+// ByteDance's rejections arrive as nested JSON inside OpenRouter's message.
+// Translate the ones users actually hit into something they can act on.
+const KNOWN_REJECTIONS = [
+  [/may contain real person|PrivacyInformation/i,
+    'Seedance blocks photo-realistic faces in video references and start/end frames: it can\'t tell an '
+    + 'AI-generated person from a real one. Use an illustrated or stylized face for video, or use the '
+    + 'photo-real face with Seedream (image), which accepts it.'],
+  [/pixel count/i,
+    'A video reference is too small: Seedance needs about 640×640 pixels or more.'],
+  [/SensitiveContent|content policy|moderation/i,
+    'ByteDance\'s content filter rejected this request (prompt or reference). Try rewording or a different reference.'],
+];
+
+export function friendlyError(status, message) {
+  const known = KNOWN_REJECTIONS.find(([re]) => re.test(message));
+  return known ? known[1] : `OpenRouter error (HTTP ${status}): ${message}`;
+}
+
 async function openrouterFetch(path, options = {}, key = openrouterKey()) {
   if (!key) throw new MissingKeyError();
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -70,7 +88,7 @@ async function openrouterFetch(path, options = {}, key = openrouterKey()) {
   const body = await res.json();
   if (!res.ok) {
     throw Object.assign(
-      new Error(`OpenRouter error (HTTP ${res.status}): ${body?.error?.message || body?.message || 'request failed'}`),
+      new Error(friendlyError(res.status, body?.error?.message || body?.message || 'request failed')),
       { httpStatus: res.status },
     );
   }

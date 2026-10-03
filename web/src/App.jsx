@@ -8,6 +8,7 @@ import ParamsRail from './components/ParamsRail.jsx';
 import PromptPanel from './components/PromptPanel.jsx';
 import Gallery from './components/Gallery.jsx';
 import RefSlots from './components/RefSlots.jsx';
+import { startTour, tourSeen } from './tour.js';
 import {
   fileType, videoSize, roleInfo, nextTag, appendToPrompt, promptAfterRemoval, videoMode,
   IMAGE_REF_LIMIT, MIN_VIDEO_REF_PIXELS,
@@ -112,6 +113,16 @@ export default function App() {
       .then((server) => { if (applyServerRates(server)) setRatesVersion((v) => v + 1); })
       .catch(() => {});
   }, [ready]);
+
+  // First visit: run the guided tour once the app is usable (key added,
+  // settings closed). The "?" button in the rail replays it.
+  const tourStarted = useRef(false);
+  useEffect(() => {
+    if (tourStarted.current || !ready || !settings?.openrouter.configured || settingsOpen || tourSeen()) return undefined;
+    tourStarted.current = true;
+    const t = setTimeout(startTour, 500);
+    return () => clearTimeout(t);
+  }, [ready, settings, settingsOpen]);
 
   // Video mode isn't picked by hand: it follows what's attached.
   const mode = params.kind === 'video' ? videoMode(frames, refs) : null;
@@ -290,7 +301,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <ParamsRail params={params} mode={mode} onChange={setParams} onOpenSettings={() => setSettingsOpen(true)} />
+      <ParamsRail params={params} mode={mode} onChange={setParams} onOpenSettings={() => setSettingsOpen(true)} onOpenTour={startTour} />
 
       <main
         className={`main${dragging ? ' is-dragging' : ''}`}

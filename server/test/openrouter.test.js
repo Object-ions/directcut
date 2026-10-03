@@ -33,3 +33,11 @@ test('reads the real charge from usage.cost when present', () => {
   assert.equal(actualCost({ usage: null }), null);
   assert.equal(actualCost({ usage: { cost: 'n/a' } }), null);
 });
+
+test('ByteDance rejections become readable messages', async () => {
+  const { friendlyError } = await import('../openrouter.js');
+  const raw = 'HTTP 400: {"error":{"code":"InputImageSensitiveContentDetected.PrivacyInformation","message":"The request failed because the input image \'content[1]\' may contain real person."}}';
+  assert.match(friendlyError(400, raw), /photo-realistic faces/);
+  assert.match(friendlyError(400, 'the parameter video pixel count specified in the request must be greater'), /640×640/);
+  assert.equal(friendlyError(500, 'boom'), 'OpenRouter error (HTTP 500): boom');
+});

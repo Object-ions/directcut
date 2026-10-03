@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Guided first-run tour (driver.js) explaining each part of the screen,
+  replayable from the new "?" button. 90-second how-to video in
+  `docs/media/`, linked from the README; README screenshot updated.
+- ByteDance rejections are shown in plain English. Notably, Seedance blocks
+  photo-realistic faces in video references and frames (documented).
+- Timing and price copy corrected: images take up to a minute or two.
 - Reference tunnel is more reliable: it waits for cloudflared to connect,
   checks public DNS through two providers, and retries once with a fresh
   tunnel. No cloudflared process is left behind if the server stops mid-start.

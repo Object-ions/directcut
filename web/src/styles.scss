@@ -232,6 +232,8 @@ input[type='range'] {
 
   &__mark { color: $accent; }
 
+  &__actions { display: flex; gap: 2px; }
+
   &__settings {
     background: none;
     border: 1px solid transparent;
@@ -866,4 +868,40 @@ input[type='range'] {
   .rail { position: static; height: auto; border-right: none; border-bottom: 1px solid $border; }
   .diff { grid-template-columns: 1fr; }
   .frame { width: calc(50% - 18px); }
+}
+
+// ---------- guided tour (driver.js popover, themed) ----------
+
+.driver-popover.dc-tour {
+  background: $panel-2;
+  color: $text;
+  border: 1px solid color.adjust($border, $lightness: 10%);
+  border-radius: 10px;
+  max-width: 340px;
+  font-family: $sans;
+
+  .driver-popover-title { font-family: $mono; font-size: 13px; letter-spacing: 0.02em; }
+  .driver-popover-description { font-size: 14px; line-height: 1.55; color: color.adjust($text, $lightness: -8%); }
+  .driver-popover-description code { color: $warn; }
+  .driver-popover-progress-text { font-family: $mono; font-size: 11px; color: $muted; }
+  .driver-popover-close-btn { color: $muted; &:hover { color: $text; } }
+
+  .driver-popover-footer button {
+    background: $panel;
+    color: $text;
+    border: 1px solid $border;
+    border-radius: 6px;
+    text-shadow: none;
+    font-family: $mono;
+    font-size: 12px;
+    padding: 5px 10px;
+    &:hover { border-color: color.adjust($border, $lightness: 15%); }
+  }
+  // Accent orange is reserved for Generate, so the primary tour button is light.
+  .driver-popover-next-btn { background: $text; border-color: $text; color: $bg; &:hover { background: #fff; } }
+
+  .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: $panel-2; }
+  .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: $panel-2; }
+  .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: $panel-2; }
+  .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: $panel-2; }
 }
