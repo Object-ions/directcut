@@ -11,8 +11,11 @@ boundary (see CONTRIBUTING.md). Comment on or open an issue before starting.
    path, not a replacement.
 3. **Desktop launcher.** A double-click way to start Directcut (and open the
    browser) without a terminal.
-4. **More OpenRouter models.** Seedance 2.0 / 2.0 Mini, other video and image
-   models, driven from OpenRouter's model list instead of hard-coded tables.
+4. **More OpenRouter models, and real-world tests.** 14 models ship today
+   (see the README). Help wanted: a real test generation on Kling, Veo, Wan,
+   Hailuo, Nano Banana, GPT Image and Flux; more models (Seedance 2.0 / 2.0
+   Mini, Runway, Grok Imagine); and references for non-Seedance models where
+   OpenRouter supports them.
 5. **Gallery search & filtering.** By kind, status or date, plus free-text
    search over prompts.
 6. **Cost dashboard.** Spend over time on top of `/api/stats`.

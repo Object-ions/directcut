@@ -10,10 +10,35 @@ per generation. There's no subscription, no credits system and no middleman,
 and every file you make is saved to your own disk.
 
 Open source (MIT), by [Switch Case Studio](https://switchcasestudio.com).
+Contributions are very welcome, see [Contributing](#contributing).
+
+> ⚠️ **Use at your own risk.** Directcut is free software provided "as is",
+> with no warranty of any kind. You are responsible for your OpenRouter key,
+> your spending, what you generate and how you use it. The author accepts no
+> responsibility or liability for anything that happens from using it. Read
+> the full [Disclaimer](#disclaimer) before you start.
 
 ![Directcut](docs/screenshots/directcut.png)
 
 ▶ **[Watch the 90-second how-to video](docs/media/directcut-demo.mp4)**: the built-in tour, building a shot with character / style / voice references, and generating an image. New here? Click **?** next to ⚙ in the app to replay the tour anytime.
+
+## Contents
+
+- [Why](#why)
+- [Get started](#get-started-about-5-minutes)
+- [Features](#features)
+- [Supported models](#supported-models)
+- [What it is / is not](#what-it-is--is-not)
+- [Running it on a server](#running-it-on-a-server)
+- [Configuration](#configuration)
+- [Security model](#security-model)
+- [Known limitations](#known-limitations)
+- [Retention](#retention)
+- [API](#api)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Disclaimer](#disclaimer)
+- [License](#license)
 
 ## Why
 
@@ -94,6 +119,42 @@ OpenRouter key, change your password, or sign out.
 - Outputs are downloaded the moment they finish (provider links expire, yours don't)
 - Gallery with inline players, download, reuse-prompt and delete
 - Plain HTTP API, so scripts and AI agents can use it too (see [the agent example](examples/agent-skill/SKILL.md))
+
+## Supported models
+
+All models run through OpenRouter with your own key. Prices are Directcut's
+conservative estimates in USD; the real charge OpenRouter reports replaces
+the estimate after each generation.
+
+**Video** (price per second of output)
+
+| Model | Best for | Lengths | Resolutions | Frames | References | Est. price |
+|---|---|---|---|---|---|---|
+| Seedance 2.5 | Multi-reference shots (character, style, motion, voice) | 4–30s | 480p, 720p | start + end | ✅ | $0.11–0.24 |
+| Seedance 2 Fast | Cheap drafts | 4–15s | 480p, 720p | start + end | ✅ | $0.045–0.095 |
+| Kling 3.0 Pro | Realistic people (accepts photo-real faces) | 3–15s | 720p | start + end | — | $0.168 (silent $0.112) |
+| Kling 3.0 Standard | Realistic people, cheaper | 3–15s | 720p | start + end | — | $0.126 (silent $0.084) |
+| Veo 3.1 | Premium quality with sound | 4, 6, 8s | 720p, 1080p, 4K | start + end | — | $0.40–0.60 (silent $0.20–0.40) |
+| Veo 3.1 Fast | Veo quality for less | 4, 6, 8s | 720p, 1080p, 4K | start + end | — | $0.12–0.30 (silent $0.10–0.25) |
+| Wan 3.0 | Cheap 1080p, long clips | 2–30s | 480p, 720p, 1080p | start | — | $0.05–0.20 |
+| Hailuo 3 | 2K output | 5–15s | 2K | start + end | — | $0.13 (+$0.04 per frame image) |
+
+**Image** (price per image)
+
+| Model | Best for | Sizes | Max references | Est. price |
+|---|---|---|---|---|
+| Seedream 5 Pro | Photo-real, accepts real-looking faces | 1K, 2K | 14 | $0.045–0.09 |
+| Seedream 5 Lite | Cheap 2K and 4K | 2K, 4K | 14 | $0.035 |
+| Nano Banana Pro | Precise edits, text in images | 1K, 2K, 4K | 14 | $0.14–0.25 |
+| Nano Banana 2 | Fast, cheap edits | 1K, 2K, 4K | 14 | $0.07–0.16 |
+| GPT Image 2 | Following complex prompts | quality: low, medium, high | 16 | up to $0.03–0.30 |
+| Flux 3 | Artistic and photographic styles | 1K, 1.5K, 2K, 4K | 10 | $0.048–0.61 |
+
+The Seedance and Seedream models were tested end to end with real
+generations. The others are wired from OpenRouter's published model specs and
+are covered by unit and UI tests, but haven't each had a real generation yet.
+If one misbehaves, please [open an issue](https://github.com/Object-ions/directcut/issues).
+Adding a model is one entry in [`server/models.js`](server/models.js).
 
 ## What it is / is not
 
@@ -203,6 +264,65 @@ npm run build   # build the UI the server serves
 Stack, on purpose: plain JavaScript ESM (no TypeScript), Express,
 better-sqlite3 with raw SQL (no ORM), React without a state library, SCSS (no
 Tailwind). [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
+
+## Contributing
+
+**Contributions are more than welcome**, whether you're fixing a typo or
+adding a whole model. Some good ways to help:
+
+- **Report bugs** and rough edges in [Issues](https://github.com/Object-ions/directcut/issues).
+  Include what you did, what you expected and any error text.
+- **Test a model** you have credits for and tell us whether it worked.
+- **Add or update a model** in `server/models.js` when OpenRouter ships a new
+  one or changes a price.
+- **Improve the docs**, the guided tour or the UI copy.
+- **Pick something** from the [roadmap](docs/ROADMAP.md).
+
+Fork the repo, make your change on a branch, run `npm test` and
+`npm run build`, and open a pull request. For anything bigger than a bug fix,
+open an issue first so we can agree on the approach. Please read
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup, the stack rules and the
+"no platform" scope rule. First-time contributors are very welcome, and no
+contribution is too small.
+
+## Disclaimer
+
+**Directcut is provided "as is", without warranty of any kind. You use it
+entirely at your own risk.**
+
+By installing, running or using Directcut, you agree that:
+
+- **No responsibility or liability.** The author, Switch Case Studio and the
+  contributors are not responsible or liable for any damage, loss, cost,
+  claim or consequence of any kind that comes from using, misusing or being
+  unable to use this software. That includes, but isn't limited to, lost
+  money, lost data, security incidents, account suspensions and legal claims.
+- **Costs are yours.** Every generation is billed to *your* OpenRouter
+  account. Cost estimates and the daily spend cap are best-effort safeguards,
+  not guarantees. Prices can change, estimates can be wrong and bugs can
+  happen. Watch your balance on [openrouter.ai](https://openrouter.ai).
+- **Your key and your setup are yours.** You're responsible for keeping your
+  OpenRouter key, password and server secure, especially if you expose
+  Directcut to a network or the internet.
+- **What you generate is your responsibility.** You're responsible for your
+  prompts, the files you upload as references and the content you create.
+  That includes respecting copyright, trademarks, privacy and people's
+  likeness and consent, and not creating illegal, harmful, deceptive or
+  non-consensual content.
+- **Follow the providers' rules.** Your use is also governed by the terms and
+  usage policies of OpenRouter and of each model provider (ByteDance, Kling,
+  Google, Alibaba, MiniMax, OpenAI, Black Forest Labs and others). Their
+  content filters, availability and output quality are outside our control.
+- **Not affiliated.** Directcut is an independent open-source project. It
+  isn't affiliated with, endorsed by or sponsored by OpenRouter, Higgsfield
+  or any model provider. All product names and trademarks belong to their
+  owners.
+- **No support guarantee.** Help, fixes and updates are given in good faith
+  when possible, with no promise of availability or timeline.
+
+This disclaimer adds to the warranty and liability terms of the
+[MIT License](LICENSE) and doesn't replace them. If you don't agree with
+these terms, please don't use the software.
 
 ## License
 
