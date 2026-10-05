@@ -67,8 +67,8 @@ export default function Gallery({ generations, onReuse, onDelete, onClearFailed 
       <section className="gallery gallery--empty">
         <p>nothing generated yet</p>
         <p className="gallery__empty-hint">
-          describe a shot above and hit Generate: an image costs ~$0.04–0.09
-          and takes up to a minute or two; a 5s video is ~$0.23–0.55 and takes a few minutes
+          describe a shot above and hit Generate: an image costs ~$0.03–0.14 on most models
+          and takes up to a minute or two; a 5s video is ~$0.23–0.84 on most models (Veo costs more) and takes a few minutes
         </p>
       </section>
     );

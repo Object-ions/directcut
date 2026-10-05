@@ -1,8 +1,7 @@
+import { VIDEO_MODES } from './openrouter.js';
 import {
-  estimateCost, RATES,
-  VIDEO_TASK_TYPES, IMAGE_TASK_TYPES, VIDEO_MODES, VIDEO_ASPECT_RATIOS, IMAGE_ASPECT_RATIOS,
-  MODELS,
-} from './openrouter.js';
+  VIDEO_MODELS, IMAGE_MODELS, VIDEO_DEFAULT, IMAGE_DEFAULT, estimateVideoCost, estimateImageCost,
+} from './models.js';
 
 export function validationError(msg) {
   const err = new Error(msg);
@@ -28,87 +27,97 @@ export function validateAndBuild(body, opts = {}) {
   if (prompt.length > 4000) throw validationError('prompt exceeds 4000 characters');
 
   if (kind === 'image') {
-    const task_type = body.task_type || 'seedream-5-pro';
-    if (!IMAGE_TASK_TYPES.includes(task_type)) {
-      throw validationError(`task_type must be one of: ${IMAGE_TASK_TYPES.join(', ')}`);
+    const task_type = body.task_type || IMAGE_DEFAULT;
+    const model = IMAGE_MODELS[task_type];
+    if (!model) {
+      throw validationError(`task_type must be one of: ${Object.keys(IMAGE_MODELS).join(', ')}`);
     }
-    const size = body.size || (task_type.includes('-pro') ? '1K' : '2K');
-    if (!Object.hasOwn(RATES.image[task_type], size)) {
-      throw validationError(`size ${size} is not available for ${task_type}`);
+    const sizes = Object.keys(model.rates);
+    const size = body.size || sizes[0];
+    if (!sizes.includes(size)) {
+      throw validationError(`size ${size} is not available for ${task_type} (${sizes.join(', ')})`);
     }
     const aspect_ratio = body.aspect_ratio || '1:1';
-    if (!IMAGE_ASPECT_RATIOS.includes(aspect_ratio)) {
-      throw validationError(`aspect_ratio must be one of: ${IMAGE_ASPECT_RATIOS.join(', ')}`);
+    if (!model.aspects.includes(aspect_ratio)) {
+      throw validationError(`aspect_ratio for ${task_type} must be one of: ${model.aspects.join(', ')}`);
     }
     const image_urls = Array.isArray(body.image_urls) ? body.image_urls : [];
-    if (image_urls.length > 10) throw validationError('at most 10 image_urls');
-    const input = { prompt, aspect_ratio, size };
-    if (image_urls.length) input.image_urls = image_urls;
+    if (image_urls.length > model.maxReferences) {
+      throw validationError(`at most ${model.maxReferences} image_urls for ${task_type}`);
+    }
     return {
       kind, task_type, mode: null,
       params: { aspect_ratio, size, image_urls },
-      payload: { model: MODELS[task_type], prompt, aspect_ratio, resolution: size,
+      payload: { model: model.id, prompt, aspect_ratio, [model.sizeParam]: size,
         ...(image_urls.length
           ? { input_references: image_urls.map((url) => ({ type: 'image_url', image_url: { url } })) }
           : {}) },
-      cost: estimateCost({ kind, task_type, size, referenceCount: image_urls.length }),
+      cost: estimateImageCost(task_type, { size, referenceCount: image_urls.length }),
     };
   }
 
   // video
-  const task_type = body.task_type || 'seedance-2.5';
-  if (!VIDEO_TASK_TYPES.includes(task_type)) {
-    throw validationError(`task_type must be one of: ${VIDEO_TASK_TYPES.join(', ')}`);
+  const task_type = body.task_type || VIDEO_DEFAULT;
+  const model = VIDEO_MODELS[task_type];
+  if (!model) {
+    throw validationError(`task_type must be one of: ${Object.keys(VIDEO_MODELS).join(', ')}`);
   }
   const mode = body.mode || 'text_to_video';
   if (!VIDEO_MODES.includes(mode)) {
     throw validationError(`mode must be one of: ${VIDEO_MODES.join(', ')}`);
   }
-  const duration = Number(body.duration ?? 5);
-  const maxDuration = task_type.startsWith('seedance-2.5') ? 30 : 15;
-  if (!Number.isInteger(duration) || duration < 4 || duration > maxDuration) {
-    throw validationError(`duration must be an integer between 4 and ${maxDuration} for ${task_type}`);
+  if (mode === 'omni_reference' && !model.references) {
+    throw validationError(`${task_type} takes start/end frames, not references; use a Seedance model for references`);
   }
-  const resolution = body.resolution || '480p';
-  const rate = estimateCost({ kind, task_type, resolution, duration });
-  if (rate == null) {
-    throw validationError(`resolution ${resolution} is not available for ${task_type}`);
+  const { durations } = model;
+  const duration = Number(body.duration ?? (durations.includes(5) ? 5 : durations[0]));
+  if (!durations.includes(duration)) {
+    const contiguous = durations.length === durations[durations.length - 1] - durations[0] + 1;
+    throw validationError(contiguous
+      ? `duration must be an integer between ${durations[0]} and ${durations[durations.length - 1]} for ${task_type}`
+      : `duration must be one of ${durations.join(', ')} for ${task_type}`);
   }
-  const aspect_ratio = body.aspect_ratio || '16:9';
+  const resolutions = Object.keys(model.rates);
+  const resolution = body.resolution || resolutions[0];
+  if (!resolutions.includes(resolution)) {
+    throw validationError(`resolution ${resolution} is not available for ${task_type} (${resolutions.join(', ')})`);
+  }
+  const sound = body.sound === undefined ? true : body.sound !== false;
+  const aspect_ratio = body.aspect_ratio || (model.aspects.includes('16:9') ? '16:9' : model.aspects[0]);
   // 'auto' (match the first frame's shape) only makes sense with frames.
-  const aspects = mode === 'first_last_frames' ? [...VIDEO_ASPECT_RATIOS, 'auto'] : VIDEO_ASPECT_RATIOS;
+  const aspects = mode === 'first_last_frames' && model.autoAspect ? [...model.aspects, 'auto'] : model.aspects;
   if (!aspects.includes(aspect_ratio)) {
-    throw validationError(`aspect_ratio must be one of: ${VIDEO_ASPECT_RATIOS.join(', ')}`);
+    throw validationError(`aspect_ratio for ${task_type} must be one of: ${model.aspects.join(', ')}`);
   }
 
   const image_urls = Array.isArray(body.image_urls) ? body.image_urls : [];
   const video_urls = Array.isArray(body.video_urls) ? body.video_urls : [];
   const audio_urls = Array.isArray(body.audio_urls) ? body.audio_urls : [];
   const totalRefs = image_urls.length + video_urls.length + audio_urls.length;
-  const is25 = task_type.startsWith('seedance-2.5');
-  if (!is25 && totalRefs > 12) throw validationError('at most 12 total reference URLs');
-  const maxImages = 14;
-  const maxVideos = is25 ? 10 : 9;
-  const maxAudios = is25 ? 10 : 12;
-  if (image_urls.length > maxImages || video_urls.length > maxVideos || audio_urls.length > maxAudios) {
-    throw validationError(`reference limit exceeded for ${task_type}: ${maxImages} images, ${maxVideos} videos, ${maxAudios} audios`);
-  }
   if (mode === 'text_to_video' && totalRefs > 0) {
     throw validationError('text_to_video takes no reference URLs');
   }
-  if (mode === 'omni_reference' && totalRefs === 0) {
-    throw validationError('omni_reference requires at least one reference URL');
+  if (mode === 'omni_reference') {
+    const lim = model.references;
+    if (totalRefs === 0) throw validationError('omni_reference requires at least one reference URL');
+    if (totalRefs > lim.total) throw validationError(`at most ${lim.total} total reference URLs`);
+    if (image_urls.length > lim.image || video_urls.length > lim.video || audio_urls.length > lim.audio) {
+      throw validationError(`reference limit exceeded for ${task_type}: ${lim.image} images, ${lim.video} videos, ${lim.audio} audios`);
+    }
+    if (task_type !== 'seedance-2.5' && audio_urls.length && !image_urls.length && !video_urls.length) {
+      throw validationError('audio references require at least one image or video reference');
+    }
   }
   if (mode === 'first_last_frames') {
-    if (image_urls.length < 1 || image_urls.length > 2) {
-      throw validationError('first_last_frames requires 1-2 image_urls');
+    const maxFrames = model.frames.length;
+    if (image_urls.length < 1 || image_urls.length > maxFrames) {
+      throw validationError(maxFrames === 1
+        ? `${task_type} takes a start frame only (1 image_url)`
+        : 'first_last_frames requires 1-2 image_urls');
     }
     if (video_urls.length || audio_urls.length) {
       throw validationError('first_last_frames only accepts image_urls');
     }
-  }
-  if (!is25 && audio_urls.length && !image_urls.length && !video_urls.length) {
-    throw validationError('audio references require at least one image or video reference');
   }
   const counts = { image: image_urls.length, video: video_urls.length, audio: audio_urls.length };
   for (const m of prompt.matchAll(REF_RE)) {
@@ -118,7 +127,8 @@ export function validateAndBuild(body, opts = {}) {
     }
   }
 
-  const payload = { model: MODELS[task_type], prompt, duration, resolution, aspect_ratio };
+  const payload = { model: model.id, prompt, duration, resolution, aspect_ratio };
+  if (model.sound) payload.generate_audio = sound;
   if (aspect_ratio === 'auto') delete payload.aspect_ratio;
   // Start/end frames go in frame_images (first upload = first frame), not
   // input_references — otherwise Seedance treats them as loose style refs.
@@ -136,8 +146,10 @@ export function validateAndBuild(body, opts = {}) {
   if (webhookSecret && publicBaseUrl) payload.callback_url = `${publicBaseUrl}/api/webhook/openrouter?secret=${encodeURIComponent(webhookSecret)}`;
   return {
     kind, task_type, mode,
-    params: { duration, resolution, aspect_ratio, image_urls, video_urls, audio_urls },
+    params: { duration, resolution, aspect_ratio, ...(model.sound ? { sound } : {}), image_urls, video_urls, audio_urls },
     payload,
-    cost: rate,
+    cost: estimateVideoCost(task_type, {
+      resolution, duration, sound, frameCount: mode === 'first_last_frames' ? image_urls.length : 0,
+    }),
   };
 }

@@ -50,3 +50,30 @@ test('enhanced prompt is sent', () => {
   const b = build({ prompt: 'rough', enhanced_prompt: 'polished' });
   assert.equal(b.payload.prompt, 'polished');
 });
+test('other video models: their own lengths, shapes, frames and sound', () => {
+  const k = build({ prompt: 'p', task_type: 'kling-3-pro', resolution: '720p', aspect_ratio: '9:16', sound: false });
+  assert.equal(k.payload.model, 'kwaivgi/kling-v3.0-pro');
+  assert.equal(k.payload.generate_audio, false);
+  assert.equal(k.cost, 0.56);
+  rejects({ prompt: 'p', task_type: 'kling-3-pro', resolution: '480p' }, /not available/);
+  rejects({ prompt: 'p', task_type: 'kling-3-pro', resolution: '720p', aspect_ratio: '21:9' }, /aspect_ratio/);
+  rejects({ prompt: 'p', task_type: 'veo-3.1', resolution: '720p', duration: 5 }, /one of 4, 6, 8/);
+  rejects({ prompt: 'p', task_type: 'kling-3-pro', resolution: '720p', mode: 'omni_reference', image_urls: ['https://x/a.png'] }, /not references/);
+  rejects({ prompt: 'p', task_type: 'wan-3', resolution: '480p', mode: 'first_last_frames', image_urls: ['https://x/a.png', 'https://x/b.png'] }, /start frame only/);
+  rejects({ prompt: 'p', task_type: 'kling-3-pro', resolution: '720p', mode: 'first_last_frames', aspect_ratio: 'auto', image_urls: ['https://x/a.png'] }, /aspect_ratio/);
+  const v = build({ prompt: 'p', task_type: 'veo-3.1-fast', resolution: '1080p', duration: 8 });
+  assert.equal(v.payload.generate_audio, true);
+  assert.equal(v.cost, 0.96);
+  // Seedance has no sound switch, so nothing extra is sent.
+  assert.equal(build({ prompt: 'p' }).payload.generate_audio, undefined);
+});
+test('other image models: GPT Image sends quality, not resolution', () => {
+  const g = build({ kind: 'image', prompt: 'p', task_type: 'gpt-image-2', size: 'medium', aspect_ratio: '16:9' });
+  assert.equal(g.payload.model, 'openai/gpt-image-2');
+  assert.equal(g.payload.quality, 'medium');
+  assert.equal(g.payload.resolution, undefined);
+  const n = build({ kind: 'image', prompt: 'p', task_type: 'nano-banana-pro', size: '4K' });
+  assert.equal(n.payload.resolution, '4K');
+  rejects({ kind: 'image', prompt: 'p', task_type: 'nano-banana-pro', aspect_ratio: '9:21' }, /aspect_ratio/);
+  rejects({ kind: 'image', prompt: 'p', task_type: 'flux-3', image_urls: Array(11).fill('https://x/a.png') }, /at most 10/);
+});

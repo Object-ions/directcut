@@ -66,6 +66,7 @@ export const api = {
   removeOpenrouterKey: () => request('/api/settings/openrouter-key', { method: 'DELETE' }),
   changePassword: (current, next) => request('/api/settings/password', json('PUT', { current, next })),
   rates: () => request('/api/rates'),
+  models: () => request('/api/models'),
   generations: (limit = 50) => request(`/api/generations?limit=${limit}`),
   remove: (id) => request(`/api/generations/${id}`, { method: 'DELETE' }),
   clearFailed: () => request('/api/generations?status=failed', { method: 'DELETE' }),

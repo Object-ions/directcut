@@ -14,8 +14,9 @@ import { shareRefs, tunnelEnabled, stopTunnel } from './tunnel.js';
 import { enhance, enhancerConfigured } from './enhance.js';
 import {
   createTask, getTask, mapStatus, normalizeTask, downloadVideo, verifyKey, actualCost, RATES,
-  VIDEO_MODES, VIDEO_ASPECT_RATIOS, IMAGE_ASPECT_RATIOS,
+  VIDEO_MODES, fetchCatalog,
 } from './openrouter.js';
+import { catalogView, refreshCatalog, VIDEO_MODELS, IMAGE_MODELS } from './models.js';
 import {
   openrouterKey, openrouterKeySource, saveOpenrouterKey, removeOpenrouterKey, maskKey,
   passwordSource, setupRequired, checkPassword, savePassword, validatePassword,
@@ -302,8 +303,15 @@ async function syncRowFromTask(row, task) {
     row.completed_at = row.completed_at || new Date().toISOString();
     if (!row.file_path && row.kind === 'image' && normalized.images?.length) {
       const image = normalized.images[0];
-      row.file_path = base64ToMedia(image.b64_json, image.media_type || 'image/png');
-      row.error = null;
+      try {
+        // Most image models return base64; some return a URL instead.
+        row.file_path = image.b64_json
+          ? base64ToMedia(image.b64_json, image.media_type || 'image/png')
+          : await downloadToMedia(image.url, 'image');
+        row.error = null;
+      } catch (err) {
+        row.error = `media download failed: ${err.message}`;
+      }
     } else if (!row.file_path && row.kind === 'video' && row.provider_task_id) {
       try {
         row.file_path = await responseToMedia(await downloadVideo(row.provider_task_id), 'video');
@@ -547,10 +555,14 @@ app.get('/api/rates', (_req, res) => {
     video: RATES.video,
     image: RATES.image,
     video_modes: VIDEO_MODES,
-    video_aspect_ratios: VIDEO_ASPECT_RATIOS,
-    image_aspect_ratios: IMAGE_ASPECT_RATIOS,
+    video_aspect_ratios: VIDEO_MODELS['seedance-2.5'].aspects,
+    image_aspect_ratios: IMAGE_MODELS['seedream-5-pro'].aspects,
   });
 });
+
+// The model lineup with each model's controls and rates; the UI draws its
+// model picker, sliders and slots from this.
+app.get('/api/models', (_req, res) => res.json(catalogView()));
 
 app.get('/api/generations', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -670,6 +682,15 @@ app.listen(PORT, HOST, () => {
     console.log('');
   }
 });
+
+// Check the built-in rates against OpenRouter's live prices at start and
+// twice a day; any price that went up raises the estimate (never lowers it).
+async function checkPrices() {
+  const raised = await refreshCatalog(fetchCatalog);
+  if (raised.length) console.log(`rates raised to current OpenRouter prices: ${raised.join(', ')}`);
+}
+checkPrices();
+setInterval(checkPrices, 12 * 60 * 60 * 1000).unref();
 
 // Don't leave a cloudflared child running if the server is stopped.
 for (const sig of ['SIGINT', 'SIGTERM']) {

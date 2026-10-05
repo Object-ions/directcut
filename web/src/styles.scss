@@ -45,6 +45,15 @@ code { font-family: $mono; }
     color: $muted;
     margin-bottom: 7px;
   }
+
+  &__note {
+    display: block;
+    margin-top: 6px;
+    font-family: $mono;
+    font-size: 11px;
+    line-height: 1.4;
+    color: $muted;
+  }
 }
 
 select,

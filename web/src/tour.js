@@ -18,8 +18,9 @@ const STEPS = [
   {
     element: '.rail',
     title: 'Pick what to make',
-    description: '<b>video</b> (Seedance) or <b>image</b> (Seedream), the model, length, resolution and shape. '
-      + '<b>seedance-2-fast</b> is cheapest for drafts; <b>seedance-2.5</b> is best quality.',
+    description: '<b>video</b> or <b>image</b>, then the model, length, resolution and shape. '
+      + 'Each model has a one-line note on what it\'s best at, and the controls change to fit it: '
+      + '<b>Seedance</b> takes references, <b>Kling</b> handles realistic faces, <b>Veo</b> is premium.',
     side: 'right',
   },
   {

@@ -1,7 +1,6 @@
 import React from 'react';
 import {
-  videoTaskTypes, imageTaskTypes, VIDEO_ASPECTS, IMAGE_ASPECTS,
-  resolutionsFor, sizesFor, maxDurationFor,
+  modelsFor, modelFor, resolutionsFor, sizesFor, aspectsFor, durationsContiguous, fitParams,
 } from '../rates.js';
 
 function Field({ label, children }) {
@@ -13,34 +12,36 @@ function Field({ label, children }) {
   );
 }
 
+function Segmented({ options, value, onPick, format = String }) {
+  return (
+    <div className="segmented">
+      {options.map((o) => (
+        <button
+          key={o}
+          type="button"
+          className={value === o ? 'is-active' : ''}
+          aria-pressed={value === o}
+          onClick={() => onPick(o)}
+        >
+          {format(o)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ParamsRail({ params, mode, onChange, onOpenSettings, onOpenTour }) {
-  const { kind, taskType, duration, resolution, size, aspectRatio } = params;
+  const { kind, taskType, duration, resolution, size, aspectRatio, sound } = params;
+  const model = modelFor(kind, taskType);
   const set = (patch) => onChange({ ...params, ...patch });
 
   function setKind(nextKind) {
     if (nextKind === kind) return;
-    set(nextKind === 'video'
-      ? { kind: 'video', taskType: 'seedance-2.5', resolution: '480p', aspectRatio: '16:9' }
-      : { kind: 'image', taskType: 'seedream-5-pro', size: '1K', aspectRatio: '1:1' });
+    const first = modelsFor(nextKind)[0];
+    onChange(fitParams({ ...params, kind: nextKind, aspectRatio: nextKind === 'video' ? '16:9' : '1:1' }, first, mode));
   }
 
-  function setTaskType(next) {
-    const patch = { taskType: next };
-    if (kind === 'video' && !resolutionsFor(next).includes(resolution)) {
-      patch.resolution = resolutionsFor(next)[0];
-    }
-    if (kind === 'image' && !sizesFor(next).includes(size)) {
-      patch.size = sizesFor(next)[0];
-    }
-    if (kind === 'video' && duration > maxDurationFor(next)) {
-      patch.duration = maxDurationFor(next);
-    }
-    set(patch);
-  }
-
-  const aspects = kind === 'video'
-    ? (mode === 'first_last_frames' ? [...VIDEO_ASPECTS, 'auto'] : VIDEO_ASPECTS)
-    : IMAGE_ASPECTS;
+  const aspects = kind === 'video' ? aspectsFor(model, mode) : model.aspects;
 
   return (
     <aside className="rail">
@@ -73,59 +74,46 @@ export default function ParamsRail({ params, mode, onChange, onOpenSettings, onO
       </Field>
 
       <Field label="model">
-        <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
-          {(kind === 'video' ? videoTaskTypes() : imageTaskTypes()).map((t) => (
-            <option key={t} value={t}>{t}</option>
+        <select value={model.key} onChange={(e) => onChange(fitParams(params, modelFor(kind, e.target.value), mode))}>
+          {modelsFor(kind).map((m) => (
+            <option key={m.key} value={m.key}>{m.label}</option>
           ))}
         </select>
+        {model.note && <small className="field__note">{model.note}</small>}
       </Field>
 
       {kind === 'video' && (
         <>
           <Field label={`duration · ${duration}s`}>
-            <input
-              type="range"
-              min="4"
-              max={maxDurationFor(taskType)}
-              step="1"
-              value={duration}
-              onChange={(e) => set({ duration: Number(e.target.value) })}
-            />
+            {durationsContiguous(model) ? (
+              <input
+                type="range"
+                min={model.durations[0]}
+                max={model.durations[model.durations.length - 1]}
+                step="1"
+                value={duration}
+                onChange={(e) => set({ duration: Number(e.target.value) })}
+              />
+            ) : (
+              <Segmented options={model.durations} value={duration} onPick={(d) => set({ duration: d })} format={(d) => `${d}s`} />
+            )}
           </Field>
 
           <Field label="resolution">
-            <div className="segmented">
-              {resolutionsFor(taskType).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  className={resolution === r ? 'is-active' : ''}
-                  aria-pressed={resolution === r}
-                  onClick={() => set({ resolution: r })}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
+            <Segmented options={resolutionsFor(model)} value={resolution} onPick={(r) => set({ resolution: r })} />
           </Field>
+
+          {model.sound && (
+            <Field label="sound">
+              <Segmented options={['on', 'off']} value={sound === false ? 'off' : 'on'} onPick={(v) => set({ sound: v === 'on' })} />
+            </Field>
+          )}
         </>
       )}
 
       {kind === 'image' && (
-        <Field label="size">
-          <div className="segmented">
-            {sizesFor(taskType).map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={size === s ? 'is-active' : ''}
-                aria-pressed={size === s}
-                onClick={() => set({ size: s })}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+        <Field label={model.sizeParam === 'quality' ? 'quality' : 'size'}>
+          <Segmented options={sizesFor(model)} value={size} onPick={(s) => set({ size: s })} />
         </Field>
       )}
 

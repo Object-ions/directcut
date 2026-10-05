@@ -1,43 +1,38 @@
 import { openrouterKey } from './settings.js';
 
-// OpenRouter generation adapter. Rates are conservative pre-flight estimates;
+import {
+  VIDEO_MODELS, IMAGE_MODELS, estimateVideoCost, estimateImageCost,
+} from './models.js';
+
+// OpenRouter generation adapter. The lineup, capabilities and conservative
+// rates live in models.js; these are the flat views older callers use.
 // OpenRouter's returned usage.cost is the authoritative charge after completion.
-// Video is billed per token, tokens = width × height × 24fps × seconds / 1024:
-// per-second rates below are that at 16:9 (the largest frame), rounded up.
+const ratesOf = (table) => Object.fromEntries(Object.entries(table).map(([k, m]) => [k, m.rates]));
 export const RATES = {
-  video: {
-    'seedance-2.5': { '480p': 0.11, '720p': 0.24 },
-    'seedance-2-fast': { '480p': 0.045, '720p': 0.095 },
-  },
-  image: {
-    'seedream-5-pro': { '1K': 0.045, '2K': 0.09 },
-    'seedream-5-lite': { '2K': 0.035, '4K': 0.035 },
-  },
+  get video() { return ratesOf(VIDEO_MODELS); },
+  get image() { return ratesOf(IMAGE_MODELS); },
 };
 
-export const MODELS = {
-  'seedance-2.5': 'bytedance/seedance-2.5',
-  'seedance-2-fast': 'bytedance/seedance-2.0-fast',
-  'seedream-5-pro': 'bytedance-seed/seedream-5-0-pro',
-  'seedream-5-lite': 'bytedance-seed/seedream-5-0-lite',
-};
-export const VIDEO_TASK_TYPES = ['seedance-2.5', 'seedance-2-fast'];
-export const IMAGE_TASK_TYPES = ['seedream-5-pro', 'seedream-5-lite'];
+export const MODELS = Object.fromEntries(
+  [...Object.entries(VIDEO_MODELS), ...Object.entries(IMAGE_MODELS)].map(([k, m]) => [k, m.id]),
+);
+export const VIDEO_TASK_TYPES = Object.keys(VIDEO_MODELS);
+export const IMAGE_TASK_TYPES = Object.keys(IMAGE_MODELS);
 export const VIDEO_MODES = ['text_to_video', 'first_last_frames', 'omni_reference'];
-export const VIDEO_ASPECT_RATIOS = ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'];
-export const IMAGE_ASPECT_RATIOS = ['1:1', '1:2', '2:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '9:20', '20:9', '9:21', '21:9', 'auto'];
 
 const BASE_URL = 'https://openrouter.ai/api/v1';
 
-export function estimateCost({ kind, task_type, resolution, size, duration, referenceCount = 0 }) {
-  if (kind === 'video') {
-    const rate = RATES.video[task_type]?.[resolution];
-    return rate == null ? null : Math.round(rate * duration * 1000) / 1000;
-  }
-  const rate = RATES.image[task_type]?.[size];
-  if (rate == null) return null;
-  const inputCost = task_type === 'seedream-5-pro' ? referenceCount * 0.003 : 0;
-  return Math.round((rate + inputCost) * 1000) / 1000;
+export function estimateCost({ kind, task_type, resolution, size, duration, sound, referenceCount = 0, frameCount = 0 }) {
+  return kind === 'video'
+    ? estimateVideoCost(task_type, { resolution, duration, sound, frameCount })
+    : estimateImageCost(task_type, { size, referenceCount });
+}
+
+// Unauthenticated GET against the public catalog (no key needed).
+export async function fetchCatalog(path) {
+  const res = await fetch(`${BASE_URL}${path}`, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`catalog HTTP ${res.status}`);
+  return res.json();
 }
 
 // OpenRouter app attribution (shows up on openrouter.ai/activity).
@@ -60,7 +55,7 @@ const KNOWN_REJECTIONS = [
   [/pixel count/i,
     'A video reference is too small: Seedance needs about 640×640 pixels or more.'],
   [/SensitiveContent|content policy|moderation/i,
-    'ByteDance\'s content filter rejected this request (prompt or reference). Try rewording or a different reference.'],
+    'The model\'s content filter rejected this request (prompt or reference). Try rewording or a different reference.'],
 ];
 
 export function friendlyError(status, message) {

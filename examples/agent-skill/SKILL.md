@@ -73,21 +73,29 @@ Returns `{id, status, cost_estimate}`. `502` means OpenRouter rejected/failed th
 
 **Allowed values & rules (server-validated):**
 
-- Video `task_type`: `seedance-2.5` (default) or `seedance-2-fast`.
+- `GET /api/models` lists every model with what it accepts (durations, resolutions, aspect ratios, frames, references, sound) and its rates. Use it as the source of truth.
+- Video `task_type`: `seedance-2.5` (default), `seedance-2-fast`, `kling-3-pro`, `kling-3-std`, `veo-3.1`, `veo-3.1-fast`, `wan-3`, `hailuo-3`. Only the two Seedance models take `omni_reference`; the rest take text or frames (`wan-3`: start frame only). For realistic faces use Kling (Seedance rejects them).
+- `sound`: `true` (default) / `false` on models with a sound switch (Kling, Veo, Wan, Hailuo); silent is cheaper on Kling and Veo.
 - Video `mode`: `text_to_video` (no refs allowed), `first_last_frames` (exactly 1–2 `image_urls`, nothing else; `@image1` = opening frame, `@image2` = closing frame), `omni_reference` (any mix of refs, at least one required).
-- `duration`: integer 4–30 for `seedance-2.5`, 4–15 for `seedance-2-fast`. `resolution`: `480p` or `720p`. Video `aspect_ratio`: `21:9, 16:9, 4:3, 1:1, 3:4, 9:16`.
+- Seedance: `duration` 4–30 for `seedance-2.5`, 4–15 for `seedance-2-fast`; `resolution` `480p` or `720p`; `aspect_ratio` `21:9, 16:9, 4:3, 1:1, 3:4, 9:16`. Kling: 3–15s, `720p`, `16:9, 9:16, 1:1`. Veo: 4, 6 or 8s, `720p/1080p/4K`, `16:9, 9:16`. Wan 3.0: 2–30s, `480p/720p/1080p`. Hailuo 3: 5–15s, `2K`.
 - Refs: up to 14 images; up to 10 videos and 10 audios on `seedance-2.5` (9 / 12 on `seedance-2-fast`, max 12 refs total, and audio needs at least one image or video ref). Every `@imageN`/`@videoN`/`@audioN` tag in the prompt must have a matching URL (1-based) or the request is rejected. Reference URLs must be reachable by OpenRouter (public).
-- Image `task_type`: `seedream-5-pro` (default; sizes `1K`/`2K`) or `seedream-5-lite` (sizes `2K`/`4K`). Image `aspect_ratio`: `1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 4:5, 5:4, 21:9` and more (`GET /api/rates` lists them). ≤10 `image_urls` (editing/reference).
+- Image `task_type`: `seedream-5-pro` (default; sizes `1K`/`2K`), `seedream-5-lite` (`2K`/`4K`), `nano-banana-pro` (`1K`/`2K`/`4K`), `nano-banana-2` (`1K`/`2K`/`4K`), `gpt-image-2` (`size` is the quality: `low`/`medium`/`high`), `flux-3` (`1K`/`1.5K`/`2K`/`4K`). Aspect ratios and the `image_urls` limit (10–16) differ per model; see `GET /api/models`.
 - Prompt ≤4000 chars (but aim for <1500 per the guide).
 
-**Cost (USD, conservative estimates; the real OpenRouter charge replaces the estimate on completion).** `GET /api/rates` returns the live table.
+**Cost (USD, conservative estimates; the real OpenRouter charge replaces the estimate on completion).** `GET /api/models` returns the live table (per second for video, per image for images).
 
-| Video tier | 480p | 720p |
-|---|---|---|
-| seedance-2.5 | 0.11/s | 0.24/s |
-| seedance-2-fast | 0.045/s | 0.095/s |
+| Video (per second) | 480p | 720p | 1080p | 4K / 2K |
+|---|---|---|---|---|
+| seedance-2.5 | 0.11 | 0.24 | | |
+| seedance-2-fast | 0.045 | 0.095 | | |
+| kling-3-pro (sound / silent) | | 0.168 / 0.112 | | |
+| kling-3-std (sound / silent) | | 0.126 / 0.084 | | |
+| veo-3.1 (sound / silent) | | 0.40 / 0.20 | 0.40 / 0.20 | 4K 0.60 / 0.40 |
+| veo-3.1-fast (sound / silent) | | 0.12 / 0.10 | 0.12 / 0.10 | 4K 0.30 / 0.25 |
+| wan-3 | 0.05 | 0.10 | 0.20 | |
+| hailuo-3 (+0.04 per frame image) | | | | 2K 0.13 |
 
-Images: Pro $0.045 (1K) / $0.09 (2K), +$0.003 per reference image; Lite $0.035 (2K/4K).
+Images: Seedream Pro $0.045 (1K) / $0.09 (2K), +$0.003 per reference; Seedream Lite $0.035; Nano Banana Pro $0.14 (1K/2K) / $0.25 (4K); Nano Banana 2 $0.07 / $0.11 / $0.16; GPT Image 2 up to $0.03 / $0.10 / $0.30 by quality, +$0.02 per reference; Flux 3 $0.048 (1K) to $0.61 (4K).
 Example: default 5s Seedance 2.5 480p video ≈ $0.55.
 
 ### GET /api/tasks/:id

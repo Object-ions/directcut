@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, AuthError, SetupRequiredError, getKey, clearKey } from './api.js';
-import { estimateCost, applyServerRates } from './rates.js';
+import { estimateCost, applyServerModels, modelFor } from './rates.js';
 import Login from './components/Login.jsx';
 import Setup from './components/Setup.jsx';
 import Settings from './components/Settings.jsx';
@@ -21,6 +21,7 @@ const DEFAULT_PARAMS = {
   resolution: '480p',
   size: '2K',
   aspectRatio: '16:9',
+  sound: true,
 };
 
 const MODE_LABEL = {
@@ -51,7 +52,7 @@ export default function App() {
   const [frames, setFrames] = useState({ start: null, end: null });
   const [uploading, setUploading] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [, setRatesVersion] = useState(0); // bump to re-render after /api/rates lands
+  const [, setModelsVersion] = useState(0); // bump to re-render after /api/models lands
   const [enhancerGone, setEnhancerGone] = useState(false);
   const [generations, setGenerations] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -105,12 +106,12 @@ export default function App() {
     if (ready) loadSettings();
   }, [ready, loadSettings]);
 
-  // The server's rate table is authoritative; the baked-in copy only covers
-  // the render until this lands (or if it fails).
+  // The server's model lineup is authoritative; the baked-in copy only
+  // covers the render until this lands (or if it fails).
   useEffect(() => {
     if (!ready) return;
-    api.rates()
-      .then((server) => { if (applyServerRates(server)) setRatesVersion((v) => v + 1); })
+    api.models()
+      .then((server) => { if (applyServerModels(server)) setModelsVersion((v) => v + 1); })
       .catch(() => {});
   }, [ready]);
 
@@ -126,12 +127,13 @@ export default function App() {
 
   // Video mode isn't picked by hand: it follows what's attached.
   const mode = params.kind === 'video' ? videoMode(frames, refs) : null;
+  const model = modelFor(params.kind, params.taskType);
 
   // Seedance shapes a frames video like its start image, so frame mode
   // defaults to 'auto'; 'auto' only exists there, so fall back when it ends.
   useEffect(() => {
-    if (mode === 'first_last_frames') setParams((p) => ({ ...p, aspectRatio: 'auto' }));
-  }, [mode]);
+    if (mode === 'first_last_frames' && model.autoAspect) setParams((p) => ({ ...p, aspectRatio: 'auto' }));
+  }, [mode, model.autoAspect]);
   useEffect(() => {
     if (params.aspectRatio === 'auto' && mode !== 'first_last_frames') {
       setParams((p) => ({ ...p, aspectRatio: '16:9' }));
@@ -168,14 +170,15 @@ export default function App() {
         const base = { url, filename, type, name: file.name };
         if (target.slot) {
           setFrames((f) => ({ ...f, [target.slot]: base }));
-          if (target.slot === 'start' && files.length > 1) target = { slot: 'end' };
+          if (target.slot === 'start' && files.length > 1 && model.frames?.length > 1) target = { slot: 'end' };
           continue;
         }
         // Read and write through refsRef (not a setRefs updater) so the
         // prompt phrase is appended exactly once, even under StrictMode.
         const prev = refsRef.current;
-        if (params.kind === 'image' && prev.length >= IMAGE_REF_LIMIT) {
-          pushToast(`at most ${IMAGE_REF_LIMIT} image references`);
+        const imageLimit = model.maxReferences || IMAGE_REF_LIMIT;
+        if (params.kind === 'image' && prev.length >= imageLimit) {
+          pushToast(`at most ${imageLimit} image references for ${model.label}`);
           continue;
         }
         const phrase = role ? role.phrase(nextTag(prev, type)) : null;
@@ -190,17 +193,22 @@ export default function App() {
         setUploading((n) => n - 1);
       }
     }
-  }, [params.kind, pushToast, logout]);
+  }, [params.kind, model, pushToast, logout]);
 
   // Drop/paste with no explicit slot: in frame mode an image fills the end
   // frame; otherwise it becomes a plain reference.
   const attachLoose = useCallback((files) => {
+    // Models without references: a loose image becomes the start frame.
+    if (params.kind === 'video' && !model.references && !frames.start) {
+      return attach(files.slice(0, 1), { slot: 'start' });
+    }
     if (params.kind === 'video' && frames.start) {
+      if (model.frames.length < 2) return pushToast(`${model.label} takes a start frame only`);
       if (frames.end) return pushToast('remove the start/end frames to add references');
       return attach(files.slice(0, 1), { slot: 'end' });
     }
     return attach(files, { tray: true });
-  }, [params.kind, frames, attach, pushToast]);
+  }, [params.kind, model, frames, attach, pushToast]);
 
   function removeRef(index) {
     setPrompt((p) => promptAfterRemoval(p, refs, index));
@@ -224,13 +232,19 @@ export default function App() {
     return () => clearInterval(pollTimer.current);
   }, [ready, refresh]);
 
-  const cost = estimateCost({ ...params, referenceCount: params.kind === 'image' ? refs.length : 0 });
+  const frameCount = mode === 'first_last_frames' ? [frames.start, frames.end].filter(Boolean).length : 0;
+  const cost = estimateCost({ ...params, referenceCount: params.kind === 'image' ? refs.length : 0, frameCount });
 
   // Combinations the server would reject, caught before the click.
-  const refsProblem = params.kind === 'video' && !params.taskType.startsWith('seedance-2.5')
-    && refs.some((r) => r.type === 'audio') && !refs.some((r) => r.type !== 'audio')
-    ? `${params.taskType} needs an image or video reference with a voice, add a character or switch to seedance-2.5`
-    : null;
+  let refsProblem = null;
+  if (params.kind === 'video' && refs.length && !model.references) {
+    refsProblem = `${model.label} takes start/end frames, not references: remove the references or switch to Seedance`;
+  } else if (params.kind === 'video' && frames.end && model.frames.length < 2) {
+    refsProblem = `${model.label} takes a start frame only: remove the end frame`;
+  } else if (params.kind === 'video' && model.references && params.taskType !== 'seedance-2.5'
+    && refs.some((r) => r.type === 'audio') && !refs.some((r) => r.type !== 'audio')) {
+    refsProblem = `${model.label} needs an image or video reference with a voice, add a character or switch to Seedance 2.5`;
+  }
 
   async function generate() {
     if (!prompt.trim() || busy || uploading > 0 || refsProblem) return;
@@ -250,6 +264,7 @@ export default function App() {
         body.mode = mode;
         body.duration = params.duration;
         body.resolution = params.resolution;
+        if (model.sound) body.sound = params.sound !== false;
         body.image_urls = mode === 'first_last_frames'
           ? [frames.start, frames.end].filter(Boolean).map((r) => r.url)
           : refs.filter((r) => r.type === 'image').map((r) => r.url);
@@ -345,6 +360,7 @@ export default function App() {
 
         <RefSlots
           kind={params.kind}
+          model={model}
           refs={refs}
           frames={frames}
           uploading={uploading}
@@ -359,8 +375,8 @@ export default function App() {
             est. cost <strong>{cost == null ? '—' : `$${cost.toFixed(3)}`}</strong>
             <span className="costbar__detail">
               {params.kind === 'video'
-                ? ` · ${params.taskType} · ${params.duration}s @ ${params.resolution} · ${MODE_LABEL[mode]}`
-                : ` · ${params.taskType} · ${params.size}`}
+                ? ` · ${model.label} · ${params.duration}s @ ${params.resolution}${model.sound && params.sound === false ? ' · no sound' : ''} · ${MODE_LABEL[mode]}`
+                : ` · ${model.label} · ${params.size}`}
             </span>
           </code>
           {refsProblem && <span className="costbar__warn" role="alert">{refsProblem}</span>}

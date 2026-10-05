@@ -68,10 +68,14 @@ function RefCard({ r, onInsert, onRemove }) {
   );
 }
 
-export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRemoveRef, onClearFrame, onInsertTag }) {
+export default function RefSlots({ kind, model, refs, frames, uploading, onAttach, onRemoveRef, onClearFrame, onInsertTag }) {
   const input = useRef(null);
   const [pick, setPick] = useState(null); // { accept, target } for the shared file input
   const tagged = tagRefs(refs);
+  const imageLimit = model.maxReferences || IMAGE_REF_LIMIT;
+  // Only Seedance takes references for video; the rest take frames only.
+  const noVideoRefs = kind === 'video' && !model.references;
+  const hasEndFrame = model.frames ? model.frames.length > 1 : true;
   const refsLocked = kind === 'video' && Boolean(frames.start);
   const framesLocked = kind === 'video' && refs.length > 0;
   const trayDrop = useDrop((files) => onAttach(files, { tray: true }), refsLocked);
@@ -89,7 +93,9 @@ export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRe
       {kind === 'video' && (
         <div className="slots__group">
           <span className="field__label">
-            frames <small>· optional · the video starts (and ends) on these images</small>
+            frames <small>{hasEndFrame
+              ? '· optional · the video starts (and ends) on these images'
+              : `· optional · ${model.label} starts the video on this image`}</small>
           </span>
           <div className="frames">
             <FrameSlot
@@ -101,8 +107,8 @@ export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRe
               onFiles={(files) => onAttach(files, { slot: 'start' })}
               onClear={() => onClearFrame('start')}
             />
-            <span className="frames__arrow" aria-hidden="true">→</span>
-            <FrameSlot
+            {hasEndFrame && <span className="frames__arrow" aria-hidden="true">→</span>}
+            {hasEndFrame && <FrameSlot
               label="end"
               frame={frames.end}
               disabled={framesLocked || !frames.start}
@@ -110,18 +116,33 @@ export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRe
               onPick={() => choose(ACCEPT.image, { slot: 'end' })}
               onFiles={(files) => onAttach(files, { slot: 'end' })}
               onClear={() => onClearFrame('end')}
-            />
+            />}
           </div>
         </div>
       )}
 
+      {noVideoRefs ? (
+        <div className="slots__group">
+          <span className="field__label">references</span>
+          {refs.length > 0 && (
+            <div className="tray">
+              {tagged.map((r, i) => (
+                <RefCard key={r.url} r={r} onInsert={onInsertTag} onRemove={() => onRemoveRef(i)} />
+              ))}
+            </div>
+          )}
+          <p className="slots__hint">
+            {model.label} works from text and frames only. For character, style, motion and voice references, pick a Seedance model.
+          </p>
+        </div>
+      ) : (
       <div className="slots__group">
         <span className="field__label">
           references
           <small>
             {kind === 'video'
               ? ' · click one to insert its tag into the prompt'
-              : ` · up to ${IMAGE_REF_LIMIT} images · click one to insert its tag`}
+              : ` · up to ${imageLimit} images · click one to insert its tag`}
           </small>
         </span>
         <div className={`tray${trayDrop.over ? ' is-over' : ''}${refsLocked ? ' is-disabled' : ''}`} {...trayDrop.props}>
@@ -151,7 +172,7 @@ export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRe
               </button>
             </>
           ) : (
-            refs.length < IMAGE_REF_LIMIT && (
+            refs.length < imageLimit && (
               <button type="button" className="tray__add tray__add--any" disabled={busy} onClick={() => choose(ACCEPT.image, { tray: true })}>
                 + add image
               </button>
@@ -161,6 +182,7 @@ export default function RefSlots({ kind, refs, frames, uploading, onAttach, onRe
         </div>
         <p className="slots__hint">drop files anywhere on the page, or paste an image into the prompt (⌘V)</p>
       </div>
+      )}
 
       <input
         ref={input}

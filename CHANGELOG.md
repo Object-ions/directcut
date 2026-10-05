@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Multi-model support.** Video: Kling 3.0 Pro / Standard, Veo 3.1 /
+  Veo 3.1 Fast, Wan 3.0 and Hailuo 3 alongside Seedance. Images: Nano Banana
+  Pro / 2, GPT Image 2 and Flux 3 alongside Seedream. The lineup lives in
+  `server/models.js` and is served at `GET /api/models`; the model picker
+  shows what each one is best at, and the controls (lengths, resolutions,
+  aspect ratios, sound switch, frame and reference slots) follow the model.
+- Rates are checked against OpenRouter's live catalog at startup and twice
+  a day. A higher live price raises the estimate; nothing lowers it.
+- CI runs on Node 24 actions (checkout/setup-node v5) on ubuntu-24.04.
+
 - Guided first-run tour (driver.js) explaining each part of the screen,
   replayable from the new "?" button. 90-second how-to video in
   `docs/media/`, linked from the README; README screenshot updated.

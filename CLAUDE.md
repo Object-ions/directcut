@@ -1,10 +1,11 @@
 # Directcut: notes for AI coding assistants
 
-Self-hosted AI video/image generation: a browser UI over OpenRouter's Seedance (video) and Seedream (image) models. Single operator, bring-your-own OpenRouter key.
+Self-hosted AI video/image generation: a browser UI over OpenRouter's video models (Seedance, Kling, Veo, Wan, Hailuo) and image models (Seedream, Nano Banana, GPT Image, Flux). Single operator, bring-your-own OpenRouter key.
 
 ## Layout
 - `server/`: Node.js + Express API (plain JS, ESM, no TypeScript). Port 3456, binds `HOST` (default 127.0.0.1). Serves the built SPA from `web/dist` and media from `server/media/`.
-  - `openrouter.js`: model ids, `RATES`, OpenRouter HTTP calls (generation, polling, key check, chat for Enhance).
+  - `models.js`: the model lineup (ids, what each accepts, conservative rates) and the live price check that can only raise rates. Add a model here.
+  - `openrouter.js`: flat `RATES`/`MODELS` views of the lineup, OpenRouter HTTP calls (generation, polling, key check, chat for Enhance).
   - `validate.js`: `/api/generate` body validation → OpenRouter payload + cost estimate (pure, unit-tested).
   - `settings.js`: password (scrypt hash) and OpenRouter key stored in SQLite; env vars override; first-run setup code.
   - `media.js`: media downloads; makes local refs reachable (images inlined as data URLs). `tunnel.js`: temporary Cloudflare quick tunnel serving only active jobs' video/audio refs when `PUBLIC_BASE_URL` isn't https.

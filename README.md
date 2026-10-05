@@ -3,8 +3,9 @@
 **Generate AI video and images on your own computer, and pay the model price, not a platform's markup.**
 
 Directcut is a small app you run yourself. It gives you a clean browser UI for
-ByteDance's **Seedance 2.5** (video) and **Seedream 5** (image) models through
-[OpenRouter](https://openrouter.ai). You bring your own OpenRouter key and pay
+the top video and image models on [OpenRouter](https://openrouter.ai):
+**Seedance**, **Kling**, **Veo**, **Wan** and **Hailuo** for video, and
+**Seedream**, **Nano Banana**, **GPT Image** and **Flux** for images. You bring your own OpenRouter key and pay
 per generation. There's no subscription, no credits system and no middleman,
 and every file you make is saved to your own disk.
 
@@ -25,10 +26,17 @@ click **Generate**:
 | 5s video, 480p, `seedance-2.5` | ~$0.55 |
 | 5s video, 720p, `seedance-2.5` | ~$1.20 |
 | 5s video, 480p, `seedance-2-fast` | ~$0.23 |
+| 5s video, 720p with sound, `kling-3-pro` | ~$0.84 |
+| 6s video, 1080p with sound, `veo-3.1-fast` | ~$0.72 |
+| 10s video, 1080p, `wan-3` | ~$2.00 |
 | 1K image, `seedream-5-pro` | ~$0.045 |
 | 2K image, `seedream-5-lite` | ~$0.035 |
+| 1K image, `nano-banana-pro` | ~$0.14 |
+| 1K image, `flux-3` | ~$0.048 |
 
-Estimates are deliberately on the high side. When OpenRouter reports the
+Estimates are deliberately on the high side, and the server checks them
+against OpenRouter's live prices at startup (a price that went up raises the
+estimate; nothing lowers it). When OpenRouter reports the
 actual charge, Directcut records that instead. A **daily spend cap** (default
 $10) stops a typo or a runaway script from draining your balance.
 
@@ -76,10 +84,11 @@ OpenRouter key, change your password, or sign out.
 
 ## Features
 
-- Text-to-video, first/last-frame video and multi-reference ("omni") video with Seedance 2.5 and Seedance 2 Fast
+- **8 video models:** Seedance 2.5 and 2 Fast (multi-reference), Kling 3.0 Pro and Standard (realistic people), Veo 3.1 and Veo 3.1 Fast (premium, up to 4K), Wan 3.0 (cheap 1080p, up to 30s) and Hailuo 3 (2K)
+- **The controls follow the model:** lengths, resolutions, shapes, a sound on/off switch where it changes the price, and which frame and reference slots appear
 - **Guided tour** on first launch (replay it with **?**): every part of the screen explained in 8 short steps
 - **Reference slots:** start/end frame boxes, plus one-click **character**, **style**, **motion** and **voice** references that write their `@tag` phrase into your prompt. The video mode is picked automatically from what you attach. Drag and drop anywhere, or paste an image with ⌘V.
-- Image generation and editing with Seedream 5 Pro and Lite
+- **6 image models** for generation and editing: Seedream 5 Pro and Lite, Nano Banana Pro and Nano Banana 2, GPT Image 2 and Flux 3
 - **✦ Enhance** turns a rough idea into a detailed, production-grade prompt. It runs through your same OpenRouter key.
 - Live cost estimate before every generation, plus a server-enforced daily cap
 - Outputs are downloaded the moment they finish (provider links expire, yours don't)
@@ -155,8 +164,12 @@ Simple on purpose. Know what it is before putting it on the internet:
   `https://` `PUBLIC_BASE_URL`, which skips the tunnel entirely.
 - **Seedance blocks photo-realistic faces** as video references and start/end
   frames (ByteDance can't tell an AI-generated person from a real one).
-  Illustrated or stylized faces work. Seedream (image) accepts photo-real
-  faces, so use it for realistic people.
+  Illustrated or stylized faces work. For realistic people in video, use
+  **Kling 3.0**, which accepts photo-real start frames; Seedream (image)
+  accepts them too.
+- **References (character / style / motion / voice) are Seedance-only.** The
+  other video models take text plus start/end frames (Wan 3.0: start frame
+  only).
 - Seedance rejects small video references: they need roughly 640×640 pixels
   or more.
 - Video estimates cover output duration only. Seedance bills video

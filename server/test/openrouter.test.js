@@ -25,8 +25,11 @@ test('normalizes synchronous image and asynchronous video responses', () => {
   assert.equal(normalizeTask({ data: [{ b64_json: 'AA==' }] }, 'image').images.length, 1);
   assert.deepEqual(normalizeTask({ id: 'job', status: 'completed', unsigned_urls: ['https://x/v.mp4'] }, 'video').urls, ['https://x/v.mp4']);
 });
-test('720p video is priced above 480p (token cost scales with frame area)', () => {
-  for (const tiers of Object.values(RATES.video)) assert.ok(tiers['720p'] > tiers['480p'] * 2);
+test('Seedance 720p is priced above 480p (token cost scales with frame area)', () => {
+  for (const key of ['seedance-2.5', 'seedance-2-fast']) {
+    const tiers = RATES.video[key];
+    assert.ok(tiers['720p'] > tiers['480p'] * 2);
+  }
 });
 test('reads the real charge from usage.cost when present', () => {
   assert.equal(actualCost({ usage: { cost: 0.42 } }), 0.42);
