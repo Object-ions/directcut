@@ -7,7 +7,7 @@ purpose, and the best PRs keep it that way.
 ## Getting set up
 
 ```bash
-git clone https://github.com/Object-ions/directcut.git && cd directcut
+git clone https://github.com/switchcasestudio/directcut.git && cd directcut
 npm run setup     # install server + web deps
 npm run dev       # API on :3456 + Vite dev server on :5173
 npm test          # server tests (node:test)

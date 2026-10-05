@@ -79,7 +79,7 @@ Then open a terminal (on a Mac: **Terminal**; on Windows: **PowerShell**) and
 paste these lines one at a time:
 
 ```bash
-git clone https://github.com/Object-ions/directcut.git
+git clone https://github.com/switchcasestudio/directcut.git
 cd directcut
 npm run setup
 npm start
@@ -153,7 +153,7 @@ the estimate after each generation.
 The Seedance and Seedream models were tested end to end with real
 generations. The others are wired from OpenRouter's published model specs and
 are covered by unit and UI tests, but haven't each had a real generation yet.
-If one misbehaves, please [open an issue](https://github.com/Object-ions/directcut/issues).
+If one misbehaves, please [open an issue](https://github.com/switchcasestudio/directcut/issues).
 Adding a model is one entry in [`server/models.js`](server/models.js).
 
 ## What it is / is not
@@ -270,7 +270,7 @@ Tailwind). [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
 **Contributions are more than welcome**, whether you're fixing a typo or
 adding a whole model. Some good ways to help:
 
-- **Report bugs** and rough edges in [Issues](https://github.com/Object-ions/directcut/issues).
+- **Report bugs** and rough edges in [Issues](https://github.com/switchcasestudio/directcut/issues).
   Include what you did, what you expected and any error text.
 - **Test a model** you have credits for and tell us whether it worked.
 - **Add or update a model** in `server/models.js` when OpenRouter ships a new

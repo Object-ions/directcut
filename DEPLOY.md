@@ -15,7 +15,7 @@ For a local run, none of that is needed — see the README quickstart.
 
 ```bash
 npm install -g pm2
-git clone https://github.com/Object-ions/directcut.git && cd directcut
+git clone https://github.com/switchcasestudio/directcut.git && cd directcut
 cd server && npm ci --omit=dev && cp .env.example .env  # set PUBLIC_BASE_URL
 cd ../web && npm ci && npm run build                    # build the SPA the API serves
 cd .. && pm2 start ecosystem.config.cjs                 # name: directcut

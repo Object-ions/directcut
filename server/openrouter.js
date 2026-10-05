@@ -36,7 +36,7 @@ export async function fetchCatalog(path) {
 }
 
 // OpenRouter app attribution (shows up on openrouter.ai/activity).
-const APP_URL = 'https://github.com/Object-ions/directcut';
+const APP_URL = 'https://github.com/switchcasestudio/directcut';
 
 export class MissingKeyError extends Error {
   constructor() {
